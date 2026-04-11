@@ -1,6 +1,9 @@
 # Claude Code 설정 파일
 CLAUDE.md
 
+# 민감한 개인 경로 포함 파일
+project_info.txt
+
 # 빌드 산출물
 build/
 dist/
