@@ -54,7 +54,13 @@ from cfg.config import (
     UI_BG_COLOR,
     UI_BORDER_COLOR,
     UI_TOAST_BG,
+    UI_TOAST_BADGE_BG,
     UI_TOAST_BORDER,
+    UI_TOAST_CLOSE,
+    UI_TOAST_CONFIRM_ACCENT,
+    UI_TOAST_FG,
+    UI_TOAST_SUB_FG,
+    UI_TOAST_WARN_ACCENT,
     UI_BTN_BG,
     UI_BTN_FG,
     UI_BTN_HOVER,
@@ -1356,14 +1362,14 @@ class ShutdownScheduler:
         win = tk.Toplevel(self._tk_root)
         win.overrideredirect(True)
         win.attributes("-topmost", True)
-        win.configure(bg=UI_TOAST_BORDER)  # 외곽 테두리 색
+        win.configure(bg=UI_TOAST_BORDER)
 
-        # ── 외곽 테두리 프레임 (1px border 효과)
+        # ── 외곽 테두리 (1px)
         border = tk.Frame(win, bg=UI_TOAST_BORDER)
         border.pack(fill=tk.BOTH, expand=True, padx=1, pady=1)
 
-        # ── 좌측 컬러 바
-        tk.Frame(border, bg=accent_color, width=4).pack(side=tk.LEFT, fill=tk.Y)
+        # ── 좌측 컬러 바 (3px)
+        tk.Frame(border, bg=accent_color, width=3).pack(side=tk.LEFT, fill=tk.Y)
 
         # ── 본문 영역
         body = tk.Frame(border, bg=UI_TOAST_BG)
@@ -1371,18 +1377,18 @@ class ShutdownScheduler:
 
         # ── 상단: 아이콘 뱃지 + 제목 + 닫기 버튼
         top_row = tk.Frame(body, bg=UI_TOAST_BG)
-        top_row.pack(fill=tk.X, padx=14, pady=(12, 4))
+        top_row.pack(fill=tk.X, padx=14, pady=(13, 4))
 
-        # 아이콘 뱃지
-        badge = tk.Frame(top_row, bg=badge_bg, width=36, height=36)
+        # 아이콘 뱃지 (원형 느낌, 배경 미세하게 구분)
+        badge = tk.Frame(top_row, bg=UI_TOAST_BADGE_BG, width=34, height=34)
         badge.pack(side=tk.LEFT, padx=(0, 10))
         badge.pack_propagate(False)
         tk.Label(
             badge,
             text=icon,
-            font=(ff, 16, "bold"),
+            font=(ff, 15),
             fg=accent_color,
-            bg=badge_bg,
+            bg=UI_TOAST_BADGE_BG,
         ).place(relx=0.5, rely=0.5, anchor=tk.CENTER)
 
         # 제목
@@ -1390,7 +1396,7 @@ class ShutdownScheduler:
             top_row,
             text=title,
             font=(ff, 12, "bold"),
-            fg=UI_FG_COLOR,
+            fg=UI_TOAST_FG,
             bg=UI_TOAST_BG,
             anchor=tk.W,
         ).pack(side=tk.LEFT, fill=tk.X, expand=True)
@@ -1399,8 +1405,8 @@ class ShutdownScheduler:
         close_btn = tk.Label(
             top_row,
             text="✕",
-            font=(ff, 10),
-            fg=UI_MUTED_FG,
+            font=(ff, 9),
+            fg=UI_TOAST_CLOSE,
             bg=UI_TOAST_BG,
             cursor="hand2",
         )
@@ -1411,12 +1417,12 @@ class ShutdownScheduler:
             body,
             text=message,
             font=(ff, 10),
-            fg=UI_SUB_FG_COLOR,
+            fg=UI_TOAST_SUB_FG,
             bg=UI_TOAST_BG,
             anchor=tk.W,
             justify=tk.LEFT,
             wraplength=_TOAST_W - 80,
-        ).pack(fill=tk.X, padx=(60, 14), pady=(0, 12))
+        ).pack(fill=tk.X, padx=(58, 14), pady=(0, 13))
 
         # ── 위치 계산 및 배치
         win.update_idletasks()
@@ -1430,12 +1436,20 @@ class ShutdownScheduler:
         y = sh - th - 80
         win.geometry(f"{_TOAST_W}x{th}+{x}+{y}")
 
-        # ── Glass 효과
+        # ── 둥근 모서리 (Acrylic 없이 순수 블랙 배경 유지)
         win.update()
         try:
+            import ctypes
             hwnd = self._get_hwnd(win)
-            # 토스트 전용 블랙 Acrylic: AABBGGRR = E8(91% 불투명) + 000000(블랙)
-            self._apply_rounded_glass(hwnd, _TOAST_W, win.winfo_height(), 0xE8000000)
+            gdi32 = ctypes.windll.gdi32
+            user32 = ctypes.windll.user32
+            RADIUS = 12
+            rgn = gdi32.CreateRoundRectRgn(0, 0, _TOAST_W + 1, th + 1, RADIUS * 2, RADIUS * 2)
+            user32.SetWindowRgn(hwnd, rgn, True)
+            # Windows 11 네이티브 둥근 모서리
+            dwmapi = ctypes.windll.dwmapi
+            pref = ctypes.c_int(2)
+            dwmapi.DwmSetWindowAttribute(hwnd, 33, ctypes.byref(pref), ctypes.sizeof(pref))
         except Exception:
             pass
 
@@ -1448,8 +1462,6 @@ class ShutdownScheduler:
             message: 표시할 경고 메시지
         """
         _WARNING_DURATION_MS = 3000
-        _UI_WARN_COLOR = "#E67E22"
-        _UI_WARN_LIGHT = "#2D1A00"
 
         label = (
             ACTION_LABEL_RESTART
@@ -1461,8 +1473,8 @@ class ShutdownScheduler:
             title=f"{label} 예약 알림",
             message=message,
             icon="⏱",
-            accent_color=_UI_WARN_COLOR,
-            badge_bg=_UI_WARN_LIGHT,
+            accent_color=UI_TOAST_WARN_ACCENT,
+            badge_bg=UI_TOAST_BADGE_BG,
         )
 
         def _dismiss() -> None:
@@ -1508,8 +1520,8 @@ class ShutdownScheduler:
             title=title,
             message=message,
             icon="⏻",
-            accent_color=UI_ACCENT_COLOR,
-            badge_bg=UI_ACCENT_LIGHT,
+            accent_color=UI_TOAST_CONFIRM_ACCENT,
+            badge_bg=UI_TOAST_BADGE_BG,
         )
         self._toast_window = win
 

@@ -44,9 +44,19 @@ UI_BTN_FG: str = "#C9D1D9"           # 버튼 텍스트
 # 구분선
 UI_BORDER_COLOR: str = "#30363D"     # glass 테두리
 
-# 토스트 전용 블랙 팔레트
-UI_TOAST_BG: str = "#0A0A0A"         # 토스트 배경 (딥 블랙)
-UI_TOAST_BORDER: str = "#2A2A2A"     # 토스트 외곽선 (다크 그레이)
+# 토스트 전용 퓨어 블랙 팔레트
+UI_TOAST_BG: str = "#000000"         # 토스트 배경 (순수 블랙)
+UI_TOAST_BORDER: str = "#333333"     # 토스트 외곽선
+UI_TOAST_BADGE_BG: str = "#141414"   # 아이콘 뱃지 배경
+UI_TOAST_FG: str = "#FFFFFF"         # 제목 텍스트 (순백)
+UI_TOAST_SUB_FG: str = "#999999"     # 본문 텍스트
+UI_TOAST_CLOSE: str = "#555555"      # 닫기 버튼
+# confirm 토스트 액센트 — 화이트 계열
+UI_TOAST_CONFIRM_ACCENT: str = "#FFFFFF"
+UI_TOAST_CONFIRM_ICON: str = "#BBBBBB"
+# warning 토스트 액센트 — 앰버(고급 주황)
+UI_TOAST_WARN_ACCENT: str = "#F0A500"
+UI_TOAST_WARN_ICON: str = "#F0A500"
 
 # 의미 색상
 UI_DANGER_COLOR: str = "#F85149"     # 종료 (레드)
