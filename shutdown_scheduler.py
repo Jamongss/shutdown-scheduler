@@ -381,24 +381,25 @@ class ScheduleDialog:
             hover_color=UI_DANGER_COLOR,
             border_width=1,
             border_color=UI_DANGER_COLOR,
-            text_color=UI_DANGER_COLOR,
+            text_color=UI_FG_COLOR,
             command=self._on_cancel_schedule,
         )
         self._btn_cancel_sched.grid(row=0, column=1, padx=(0, 4), pady=6)
 
-        # ⏸/▶ 일시정지·재개 버튼 (토글)
+        # II/▶ 일시정지·재개 버튼 (토글)
+        # "⏸"는 일부 폰트에서 뭉개지므로 ASCII 기반 문자 사용
         is_paused = bool(self._scheduler and self._scheduler.is_paused)
         self._btn_pause_resume = ctk.CTkButton(
             self._countdown_frame,
-            text="▶" if is_paused else "⏸",
-            font=(ff, 11, "bold"),
+            text="▶" if is_paused else "II",
+            font=(ff, 10, "bold"),
             width=28, height=28,
             corner_radius=6,
             fg_color=UI_DANGER_BG,
             hover_color=UI_DANGER_COLOR,
             border_width=1,
             border_color=UI_DANGER_COLOR,
-            text_color=UI_DANGER_COLOR,
+            text_color=UI_FG_COLOR,
             command=self._on_pause_resume,
         )
         self._btn_pause_resume.grid(row=0, column=2, padx=(0, 8), pady=6)
@@ -896,10 +897,17 @@ class ScheduleDialog:
         dlg.bind("<Escape>", lambda e: _cancel())
 
     def _on_cancel_schedule(self) -> None:
-        """■ 예약 취소 버튼 처리 — 스케줄러에 취소를 위임하고 다이얼로그를 닫는다."""
+        """■ 예약 취소 버튼 처리 — 예약 취소 후 배너를 숨기고 창은 유지."""
         if self._scheduler is not None:
             self._scheduler.cancel_shutdown()
-        self._close(destroy=True)
+        try:
+            self._countdown_frame.grid_remove()
+            self._countdown_var.set("")
+            if self._countdown_after_id is not None:
+                self.top.after_cancel(self._countdown_after_id)
+                self._countdown_after_id = None
+        except tk.TclError:
+            pass
 
     def _on_pause_resume(self) -> None:
         """⏸/▶ 일시정지·재개 버튼 처리 — 상태 토글 후 버튼 아이콘 갱신."""
@@ -907,7 +915,7 @@ class ScheduleDialog:
             return
         if self._scheduler.is_paused:
             self._scheduler.resume_shutdown()
-            self._btn_pause_resume.configure(text="⏸")
+            self._btn_pause_resume.configure(text="II")
         else:
             self._scheduler.pause_shutdown()
             self._btn_pause_resume.configure(text="▶")
