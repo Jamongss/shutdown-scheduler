@@ -1483,13 +1483,14 @@ class ShutdownScheduler:
         close_btn.bind("<Button-1>", lambda e: _dismiss())
         win.after(_WARNING_DURATION_MS, _dismiss)
 
-    def _show_confirm_toast(self, message: str) -> None:
+    def _show_confirm_toast(self, message: str, is_cancel: bool = False) -> None:
         """3초 후 자동으로 사라지는 확인 토스트 창 표시.
 
         토스트가 이미 표시 중이면 메시지만 교체하고 타이머를 재시작한다.
 
         Args:
             message: 표시할 메시지
+            is_cancel: True면 취소 토스트 (파란색), False면 예약 토스트 (빨간색)
         """
         # 기존 토스트가 살아있으면 메시지만 교체하고 알파·타이머 리셋
         if self._toast_window is not None:
@@ -1514,13 +1515,14 @@ class ShutdownScheduler:
             if self.scheduled_action == ACTION_RESTART
             else ACTION_LABEL_SHUTDOWN
         )
-        title = f"{label} 예약"
+        title = f"{label} 예약 취소" if is_cancel else f"{label} 예약"
+        accent = UI_ACCENT_COLOR if is_cancel else UI_DANGER_COLOR
 
         win, close_btn = self._build_toast(
             title=title,
             message=message,
             icon="⏻",
-            accent_color=UI_TOAST_CONFIRM_ACCENT,
+            accent_color=accent,
             badge_bg=UI_TOAST_BADGE_BG,
         )
         self._toast_window = win
@@ -1588,7 +1590,7 @@ class ShutdownScheduler:
             self._tooltip_timer = None
 
         self._set_active_state(False)
-        self._show_confirm_toast(f"{label} 예약이 취소되었습니다.")
+        self._show_confirm_toast(f"{label} 예약이 취소되었습니다.", is_cancel=True)
 
     def _set_active_state(self, active: bool) -> None:
         """트레이 아이콘 상태 전환.
