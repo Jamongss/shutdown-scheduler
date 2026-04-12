@@ -511,11 +511,11 @@ class ScheduleDialog:
         # ━━━ 하단 버튼 ━━━
         footer = ctk.CTkFrame(main, fg_color=UI_BG_COLOR, corner_radius=0)
         footer.grid(row=6, column=0, sticky="ew", padx=24, pady=(12, 20))
-        footer.grid_columnconfigure((0, 1), weight=1)
+        footer.grid_columnconfigure((0, 1, 2), weight=1)
 
         ctk.CTkButton(
             footer,
-            text="취소",
+            text="닫기",
             font=(ff, 13, "bold"),
             height=44,
             corner_radius=12,
@@ -525,7 +525,25 @@ class ScheduleDialog:
             border_color=UI_BORDER_COLOR,
             text_color=UI_BTN_FG,
             command=self._on_cancel,
-        ).grid(row=0, column=0, sticky="ew", padx=(0, 6))
+        ).grid(row=0, column=0, sticky="ew", padx=(0, 4))
+
+        # 예약 취소 버튼 — 예약 중일 때만 활성화
+        is_scheduled = bool(self._scheduler and self._scheduler.is_active)
+        self._cancel_schedule_btn = ctk.CTkButton(
+            footer,
+            text="예약 취소",
+            font=(ff, 13, "bold"),
+            height=44,
+            corner_radius=12,
+            fg_color=UI_ACCENT_COLOR if is_scheduled else UI_BTN_BG,
+            hover_color=UI_ACCENT_HOVER if is_scheduled else UI_BTN_HOVER,
+            border_width=1,
+            border_color=UI_ACCENT_COLOR if is_scheduled else UI_BORDER_COLOR,
+            text_color=UI_ACCENT_TEXT if is_scheduled else UI_MUTED_FG,
+            state="normal" if is_scheduled else "disabled",
+            command=self._on_cancel_schedule,
+        )
+        self._cancel_schedule_btn.grid(row=0, column=1, sticky="ew", padx=4)
 
         ctk.CTkButton(
             footer,
@@ -533,14 +551,16 @@ class ScheduleDialog:
             font=(ff, 13, "bold"),
             height=44,
             corner_radius=12,
-            fg_color=UI_ACCENT_COLOR,
-            hover_color=UI_ACCENT_HOVER,
+            fg_color=UI_DANGER_COLOR,
+            hover_color=UI_DANGER_HOVER,
             text_color=UI_ACCENT_TEXT,
             command=self._on_confirm,
-        ).grid(row=0, column=1, sticky="ew", padx=(6, 0))
+        ).grid(row=0, column=2, sticky="ew", padx=(4, 0))
 
         top.bind("<Return>", lambda e: self._on_confirm())
         top.bind("<Escape>", lambda e: self._on_cancel())
+        # 다른 창 클릭 시 topmost 해제 → 자연스럽게 뒤로 내려감
+        top.bind("<FocusOut>", lambda e: top.attributes("-topmost", False))
 
         self._refresh_action_btns()
         self._refresh_unit_btns()
@@ -824,8 +844,14 @@ class ScheduleDialog:
         dlg.bind("<Return>", lambda e: _execute())
         dlg.bind("<Escape>", lambda e: _cancel())
 
+    def _on_cancel_schedule(self) -> None:
+        """예약 취소 버튼 처리 — 스케줄러에 취소를 위임하고 다이얼로그를 닫는다."""
+        if self._scheduler is not None:
+            self._scheduler.cancel_shutdown()
+        self._close(destroy=True)
+
     def _on_cancel(self) -> None:
-        """취소 / X버튼 / Esc 처리."""
+        """닫기 / X버튼 / Esc 처리."""
         self._close(destroy=True)
 
     def _close(self, destroy: bool = True) -> None:
@@ -1124,9 +1150,14 @@ class ShutdownScheduler:
         """
         if self._active_dialog is not None:
             try:
-                self._active_dialog.top.deiconify()
-                self._active_dialog.top.lift()
-                self._active_dialog.top.focus_force()
+                top = self._active_dialog.top
+                top.deiconify()
+                # 다른 앱 위로 잠깐 올라온 뒤 topmost 해제
+                # → 포커스 잃으면 FocusOut 바인딩에 의해 다시 뒤로 내려감
+                top.attributes("-topmost", True)
+                top.lift()
+                top.focus_force()
+                top.after(100, lambda: top.attributes("-topmost", False))
                 return
             except tk.TclError:
                 self._active_dialog = None
