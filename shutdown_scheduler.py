@@ -76,6 +76,7 @@ from cfg.config import (
     UI_FONT_SIZE_LARGE,
     UI_MUTED_FG,
     UI_SUB_FG_COLOR,
+    UI_SUCCESS_BG,
     UI_SUCCESS_COLOR,
     UI_SUCCESS_HOVER,
     UNIT_HOUR,
@@ -557,6 +558,27 @@ class ScheduleDialog:
             command=self._on_confirm,
         ).grid(row=0, column=2, sticky="ew", padx=(4, 0))
 
+        # ━━━ 자동 시작 토글 버튼 ━━━
+        autostart_on = is_autostart_enabled()
+        self._autostart_btn = ctk.CTkButton(
+            footer,
+            text=("✔  Windows 시작 시 자동 실행  (활성화됨)"
+                  if autostart_on else
+                  "Windows 시작 시 자동 실행  (비활성화됨)"),
+            font=(ff, 12),
+            height=36,
+            corner_radius=10,
+            fg_color=UI_SUCCESS_BG if autostart_on else UI_BTN_BG,
+            hover_color=UI_SUCCESS_COLOR if autostart_on else UI_BTN_HOVER,
+            border_width=1,
+            border_color=UI_SUCCESS_COLOR if autostart_on else UI_BORDER_COLOR,
+            text_color=UI_SUCCESS_COLOR if autostart_on else UI_MUTED_FG,
+            command=self._on_toggle_autostart,
+        )
+        self._autostart_btn.grid(
+            row=1, column=0, columnspan=3, sticky="ew", pady=(8, 0)
+        )
+
         top.bind("<Return>", lambda e: self._on_confirm())
         top.bind("<Escape>", lambda e: self._on_cancel())
         # 다른 창 클릭 시 topmost 해제 → 자연스럽게 뒤로 내려감
@@ -849,6 +871,27 @@ class ScheduleDialog:
         if self._scheduler is not None:
             self._scheduler.cancel_shutdown()
         self._close(destroy=True)
+
+    def _on_toggle_autostart(self) -> None:
+        """자동 시작 토글 버튼 처리 — 상태 전환 후 버튼 외형 갱신."""
+        if is_autostart_enabled():
+            disable_autostart()
+        else:
+            enable_autostart()
+        self._refresh_autostart_btn()
+
+    def _refresh_autostart_btn(self) -> None:
+        """자동 시작 버튼 색상·텍스트 갱신."""
+        autostart_on = is_autostart_enabled()
+        self._autostart_btn.configure(
+            text=("✔  Windows 시작 시 자동 실행  (활성화됨)"
+                  if autostart_on else
+                  "Windows 시작 시 자동 실행  (비활성화됨)"),
+            fg_color=UI_SUCCESS_BG if autostart_on else UI_BTN_BG,
+            hover_color=UI_SUCCESS_COLOR if autostart_on else UI_BTN_HOVER,
+            border_color=UI_SUCCESS_COLOR if autostart_on else UI_BORDER_COLOR,
+            text_color=UI_SUCCESS_COLOR if autostart_on else UI_MUTED_FG,
+        )
 
     def _on_cancel(self) -> None:
         """닫기 / X버튼 / Esc 처리."""
