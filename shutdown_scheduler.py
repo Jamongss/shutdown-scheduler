@@ -588,10 +588,10 @@ class ScheduleDialog:
             height=36,
             corner_radius=10,
             fg_color=UI_SUCCESS_BG if autostart_on else UI_BTN_BG,
-            hover_color=UI_SUCCESS_COLOR if autostart_on else UI_BTN_HOVER,
+            hover_color=UI_SUCCESS_HOVER if autostart_on else UI_BTN_HOVER,
             border_width=1,
             border_color=UI_SUCCESS_COLOR if autostart_on else UI_BORDER_COLOR,
-            text_color=UI_SUCCESS_COLOR if autostart_on else UI_MUTED_FG,
+            text_color=UI_FG_COLOR if autostart_on else UI_MUTED_FG,
             command=self._on_toggle_autostart,
         )
         self._autostart_btn.grid(
@@ -940,9 +940,9 @@ class ScheduleDialog:
                   if autostart_on else
                   "Windows 시작 시 자동 실행  (비활성화됨)"),
             fg_color=UI_SUCCESS_BG if autostart_on else UI_BTN_BG,
-            hover_color=UI_SUCCESS_COLOR if autostart_on else UI_BTN_HOVER,
+            hover_color=UI_SUCCESS_HOVER if autostart_on else UI_BTN_HOVER,
             border_color=UI_SUCCESS_COLOR if autostart_on else UI_BORDER_COLOR,
-            text_color=UI_SUCCESS_COLOR if autostart_on else UI_MUTED_FG,
+            text_color=UI_FG_COLOR if autostart_on else UI_MUTED_FG,
         )
 
     def _on_cancel(self) -> None:
