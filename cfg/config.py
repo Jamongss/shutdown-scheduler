@@ -97,7 +97,7 @@ TOOLTIP_UPDATE_INTERVAL_MS: int = 1000
 QUEUE_POLL_INTERVAL_MS: int = 50
 
 # --- 앱 버전 ---
-APP_VERSION: str = "1.0.0"
+APP_VERSION: str = "1.1.0"
 
 # --- 동작 종류 ---
 ACTION_SHUTDOWN: str = "shutdown"
