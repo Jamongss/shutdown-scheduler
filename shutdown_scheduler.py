@@ -251,6 +251,7 @@ class ScheduleDialog:
         parent: tk.Tk,
         callback: Callable[[str, int, int, int], None],
         on_close: Optional[Callable[[], None]] = None,
+        scheduler: Optional["ShutdownScheduler"] = None,
     ) -> None:
         """다이얼로그 초기화.
 
@@ -258,13 +259,16 @@ class ScheduleDialog:
             parent: tkinter 루트 윈도우
             callback: 확인 시 호출할 함수 (action, hours, minutes, seconds)
             on_close: 창이 닫힐 때 호출될 콜백
+            scheduler: 예약 상태 참조용 ShutdownScheduler 인스턴스
         """
         self.callback = callback
         self.on_close = on_close
+        self._scheduler = scheduler
         self._action: str = ACTION_SHUTDOWN
         self._unit: str = UNIT_MINUTE
         self._total_seconds: int = 0
         self._updating: bool = False
+        self._countdown_after_id: Optional[str] = None
 
         self._action_btns: dict[str, ctk.CTkButton] = {}
         self._unit_btns: dict[str, ctk.CTkButton] = {}
@@ -337,16 +341,39 @@ class ScheduleDialog:
             anchor="w",
         ).grid(row=1, column=1, sticky="w")
 
+        # ━━━ 예약 카운트다운 배너 (예약 중일 때만 표시) ━━━
+        self._countdown_var = tk.StringVar(value="")
+        self._countdown_frame = ctk.CTkFrame(
+            main,
+            fg_color=UI_DANGER_BG,
+            corner_radius=10,
+            border_width=1,
+            border_color=UI_DANGER_COLOR,
+        )
+        self._countdown_label = ctk.CTkLabel(
+            self._countdown_frame,
+            textvariable=self._countdown_var,
+            font=(ff, 12, "bold"),
+            text_color=UI_DANGER_COLOR,
+            anchor="center",
+        )
+        self._countdown_label.pack(padx=12, pady=6)
+        # 예약 중이면 즉시 표시, 아니면 숨김
+        if self._scheduler and self._scheduler.is_active:
+            self._countdown_frame.grid(row=1, column=0, sticky="ew", padx=24, pady=(10, 0))
+            self._tick_countdown()
+        # 예약 중 아닐 땐 grid하지 않아 공간 차지 안 함
+
         # ━━━ 동작 선택 세그먼트 ━━━
         ctk.CTkLabel(
             main, text="동작",
             font=(ff, 11),
             text_color=UI_MUTED_FG,
             anchor="w",
-        ).grid(row=1, column=0, sticky="w", padx=24, pady=(14, 3))
+        ).grid(row=2, column=0, sticky="w", padx=24, pady=(14, 3))
 
         action_seg = ctk.CTkFrame(main, fg_color=UI_BTN_BG, corner_radius=12)
-        action_seg.grid(row=2, column=0, sticky="ew", padx=24)
+        action_seg.grid(row=3, column=0, sticky="ew", padx=24)
         action_seg.grid_columnconfigure((0, 1), weight=1)
 
         for col, (action_val, icon, label) in enumerate([
@@ -375,7 +402,7 @@ class ScheduleDialog:
             border_width=1,
             border_color=UI_BORDER_COLOR,
         )
-        card.grid(row=3, column=0, sticky="ew", padx=24, pady=(12, 0))
+        card.grid(row=4, column=0, sticky="ew", padx=24, pady=(12, 0))
         card.grid_columnconfigure(0, weight=1)
 
         # 숫자 Entry (glass 레이어 2)
@@ -437,7 +464,7 @@ class ScheduleDialog:
 
         # ━━━ 퀵 추가 + 초기화 버튼 ━━━
         quick_frame = ctk.CTkFrame(main, fg_color=UI_BG_COLOR, corner_radius=0)
-        quick_frame.grid(row=4, column=0, sticky="ew", padx=24, pady=(10, 0))
+        quick_frame.grid(row=5, column=0, sticky="ew", padx=24, pady=(10, 0))
         quick_frame.grid_columnconfigure((0, 1, 2), weight=1)
 
         for col, (btn_text, add_sec) in enumerate(QUICK_ADD_BUTTONS):
@@ -475,7 +502,7 @@ class ScheduleDialog:
 
         # ━━━ 하단 버튼 ━━━
         footer = ctk.CTkFrame(main, fg_color=UI_BG_COLOR, corner_radius=0)
-        footer.grid(row=5, column=0, sticky="ew", padx=24, pady=(12, 20))
+        footer.grid(row=6, column=0, sticky="ew", padx=24, pady=(12, 20))
         footer.grid_columnconfigure((0, 1), weight=1)
 
         ctk.CTkButton(
@@ -515,6 +542,31 @@ class ScheduleDialog:
     # ------------------------------------------------------------------ #
     # 상태 변경                                                            #
     # ------------------------------------------------------------------ #
+
+    def _tick_countdown(self) -> None:
+        """예약 중인 경우 남은 시간을 1초마다 카운트다운 배너에 갱신."""
+        try:
+            if self._scheduler and self._scheduler.is_active and self._scheduler.scheduled_time:
+                remaining = self._scheduler.scheduled_time - datetime.now()
+                total_sec = int(remaining.total_seconds())
+                if total_sec > 0:
+                    h, rem = divmod(total_sec, 3600)
+                    m, s = divmod(rem, 60)
+                    label = (
+                        ACTION_LABEL_RESTART
+                        if self._scheduler.scheduled_action == ACTION_RESTART
+                        else ACTION_LABEL_SHUTDOWN
+                    )
+                    self._countdown_var.set(
+                        f"⏱  {label}까지  {h:02d}:{m:02d}:{s:02d}  남았습니다"
+                    )
+                    self._countdown_after_id = self.top.after(1000, self._tick_countdown)
+                    return
+            # 예약이 없거나 시간 초과: 배너 숨김
+            self._countdown_frame.grid_remove()
+            self._countdown_var.set("")
+        except tk.TclError:
+            pass
 
     def _set_action(self, action: str) -> None:
         """동작(종료/재시작) 변경.
@@ -774,6 +826,12 @@ class ScheduleDialog:
         Args:
             destroy: True면 tk 창도 파괴
         """
+        if self._countdown_after_id is not None:
+            try:
+                self.top.after_cancel(self._countdown_after_id)
+            except Exception:
+                pass
+            self._countdown_after_id = None
         if destroy:
             try:
                 self.top.destroy()
@@ -944,31 +1002,46 @@ class ShutdownScheduler:
         )
         self.tray_icon.run()
 
+    @staticmethod
+    def _is_left_alt_only() -> bool:
+        """Windows API로 left alt(VK_LMENU=0xA4)만 눌렸는지 확인.
+
+        GetAsyncKeyState 최상위 비트가 세트되면 해당 키가 눌린 상태.
+        right alt(한/영, VK_RMENU=0xA5)가 눌려 있으면 False를 반환한다.
+
+        Returns:
+            left alt만 눌린 상태면 True
+        """
+        try:
+            import ctypes
+            VK_LMENU = 0xA4
+            VK_RMENU = 0xA5
+            left_down  = bool(ctypes.windll.user32.GetAsyncKeyState(VK_LMENU) & 0x8000)
+            right_down = bool(ctypes.windll.user32.GetAsyncKeyState(VK_RMENU) & 0x8000)
+            return left_down and not right_down
+        except Exception:
+            return False
+
     def _register_hotkeys(self) -> None:
         """글로벌 단축키 등록.
 
-        keyboard.hook으로 raw 키 이벤트를 직접 감지한다.
-        left alt + Q/S 조합만 처리하고, 우측 Alt(한/영 키)는 무시한다.
+        keyboard.hook으로 raw 키 이벤트를 감지하고,
+        GetAsyncKeyState로 left alt 여부를 확인해 우측 Alt(한/영 키)를 무시한다.
         """
-        # 단축키 상태 추적
-        _state: dict[str, bool] = {"left_alt": False}
-
         def _on_key_event(event: keyboard.KeyboardEvent) -> None:
-            # left alt 눌림/떼기 추적 (scan code 56 = left alt)
-            if event.scan_code == 56:
-                _state["left_alt"] = (event.event_type == keyboard.KEY_DOWN)
-                return
-
             if event.event_type != keyboard.KEY_DOWN:
                 return
 
-            if not _state["left_alt"]:
+            name = (event.name or "").lower()
+            if name not in ("q", "s"):
                 return
 
-            name = (event.name or "").lower()
+            if not self._is_left_alt_only():
+                return
+
             if name == "q":
                 self._queue.put("open_dialog")
-            elif name == "s":
+            else:
                 self._queue.put("cancel")
 
         try:
@@ -1053,6 +1126,7 @@ class ShutdownScheduler:
             self._tk_root,
             self._on_dialog_confirm,
             on_close=self._on_dialog_closed,
+            scheduler=self,
         )
 
     def _on_dialog_closed(self) -> None:
@@ -1254,13 +1328,16 @@ class ShutdownScheduler:
         tk.Frame(warn_toast, bg=_UI_WARN_COLOR, height=2).pack(fill=tk.X)
 
         warn_toast.update_idletasks()
-        tw = warn_toast.winfo_reqwidth()
-        th = warn_toast.winfo_reqheight()
-        sw = self._tk_root.winfo_screenwidth()
-        sh = self._tk_root.winfo_screenheight()
-        # 기존 확인 토스트(하단 80px) 위에 12px 간격으로 배치
+        tw = warn_toast.winfo_reqwidth() or 300
+        th = warn_toast.winfo_reqheight() or 60
+        try:
+            sw = self._tk_root.winfo_screenwidth()
+            sh = self._tk_root.winfo_screenheight()
+        except Exception:
+            sw, sh = 1920, 1080
+        # 확인 토스트(하단 80px)가 없을 수도 있으므로 단독 위치로 배치
         x = (sw - tw) // 2
-        y = sh - th - 80 - th - 12
+        y = sh - th - 80
         warn_toast.geometry(f"+{x}+{y}")
 
         warn_toast.update()
