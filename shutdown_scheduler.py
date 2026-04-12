@@ -1498,14 +1498,20 @@ class ShutdownScheduler:
         if self._toast_window is not None:
             if self._toast_is_cancel == is_cancel:
                 try:
+                    existing_win = self._toast_window
                     if self._toast_label is not None:
                         self._toast_label.configure(text=message)
                     if self._toast_after_id is not None:
-                        self._toast_window.after_cancel(self._toast_after_id)
-                    self._toast_window.attributes("-alpha", 1.0)
-                    self._toast_after_id = self._toast_window.after(
+                        existing_win.after_cancel(self._toast_after_id)
+                    existing_win.attributes("-alpha", 1.0)
+
+                    def _on_reuse_done(target: tk.Toplevel = existing_win) -> None:
+                        if self._toast_window is target:
+                            self._close_toast()
+
+                    self._toast_after_id = existing_win.after(
                         CONFIRM_TOAST_DURATION_MS,
-                        lambda: self._fade_out_toast(self._toast_window, self._close_toast),
+                        lambda: self._fade_out_toast(existing_win, _on_reuse_done),
                     )
                     return
                 except tk.TclError:
@@ -1536,14 +1542,20 @@ class ShutdownScheduler:
         body_widgets = win.winfo_children()[0].winfo_children()[1].winfo_children()
         self._toast_label = body_widgets[1] if len(body_widgets) > 1 else None
 
+        # fade 완료 콜백: 이 창이 현재 toast_window와 동일할 때만 정리
+        # (fade 진행 중 새 토스트가 생성된 경우 새 창을 닫지 않도록 보호)
+        def _on_fade_done(target: tk.Toplevel = win) -> None:
+            if self._toast_window is target:
+                self._close_toast()
+
         def _dismiss() -> None:
-            self._fade_out_toast(self._toast_window, self._close_toast)
+            self._fade_out_toast(win, _on_fade_done)
 
         close_btn.bind("<Button-1>", lambda e: _dismiss())
 
         self._toast_after_id = win.after(
             CONFIRM_TOAST_DURATION_MS,
-            lambda: self._fade_out_toast(self._toast_window, self._close_toast),
+            lambda: self._fade_out_toast(win, _on_fade_done),
         )
 
     def _close_toast(self) -> None:
