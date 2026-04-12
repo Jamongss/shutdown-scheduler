@@ -814,6 +814,7 @@ class ShutdownScheduler:
         self._toast_label: Optional[tk.Label] = None
         self._toast_window: Optional[tk.Toplevel] = None
         self._toast_after_id: Optional[str] = None
+        self._warning_timers: list[threading.Timer] = []
 
         # tkinter 루트 (숨김)
         self._tk_root = tk.Tk()
@@ -943,11 +944,34 @@ class ShutdownScheduler:
         )
         self.tray_icon.run()
 
-    def _register_hotkeys(self) -> None:
-        """글로벌 단축키 등록."""
+    @staticmethod
+    def _is_right_alt_pressed() -> bool:
+        """우측 Alt(한/영 키) 눌림 여부 확인.
+
+        Returns:
+            우측 Alt가 눌려 있으면 True
+        """
         try:
-            keyboard.add_hotkey(HOTKEY_SCHEDULE, lambda: self._queue.put("open_dialog"))
-            keyboard.add_hotkey(HOTKEY_CANCEL, lambda: self._queue.put("cancel"))
+            return keyboard.is_pressed("right alt")
+        except Exception:
+            return False
+
+    def _register_hotkeys(self) -> None:
+        """글로벌 단축키 등록.
+
+        Alt+Q / Alt+S 단축키는 우측 Alt(한/영 키) 입력을 무시한다.
+        """
+        def _on_schedule() -> None:
+            if not self._is_right_alt_pressed():
+                self._queue.put("open_dialog")
+
+        def _on_cancel() -> None:
+            if not self._is_right_alt_pressed():
+                self._queue.put("cancel")
+
+        try:
+            keyboard.add_hotkey(HOTKEY_SCHEDULE, _on_schedule)
+            keyboard.add_hotkey(HOTKEY_CANCEL, _on_cancel)
         except Exception as e:
             print(f"단축키 등록 실패: {e}", file=sys.stderr)
 
@@ -969,6 +993,14 @@ class ShutdownScheduler:
                     self._toggle_autostart()
                 elif event == "exit":
                     self._exit_app()
+                elif isinstance(event, str) and event.startswith("warn:"):
+                    warn_label = event[len("warn:"):]
+                    label = (
+                        ACTION_LABEL_RESTART
+                        if self.scheduled_action == ACTION_RESTART
+                        else ACTION_LABEL_SHUTDOWN
+                    )
+                    self._show_warning_toast(f"{label} {warn_label} 전입니다.")
         except queue.Empty:
             pass
         if open_dialog_requested:
@@ -1051,6 +1083,10 @@ class ShutdownScheduler:
             self._shutdown_timer.cancel()
             self._shutdown_timer = None
 
+        for t in self._warning_timers:
+            t.cancel()
+        self._warning_timers.clear()
+
         self.scheduled_action = action
         label = ACTION_LABEL_RESTART if action == ACTION_RESTART else ACTION_LABEL_SHUTDOWN
 
@@ -1066,6 +1102,18 @@ class ShutdownScheduler:
         self._shutdown_timer = threading.Timer(total_seconds, self._execute_action)
         self._shutdown_timer.daemon = True
         self._shutdown_timer.start()
+
+        # 종료 10분/5분/1분 전 토스트 알림 등록
+        for warn_sec, warn_label in [(600, "10분"), (300, "5분"), (60, "1분")]:
+            delay = total_seconds - warn_sec
+            if delay > 0:
+                t = threading.Timer(
+                    delay,
+                    lambda wl=warn_label: self._queue.put(f"warn:{wl}"),
+                )
+                t.daemon = True
+                t.start()
+                self._warning_timers.append(t)
 
         hours, rem = divmod(total_seconds, 3600)
         minutes, secs = divmod(rem, 60)
@@ -1160,6 +1208,74 @@ class ShutdownScheduler:
             user32.SetWindowCompositionAttribute(hwnd, ctypes.byref(data))
         except Exception:
             pass
+
+    def _show_warning_toast(self, message: str) -> None:
+        """종료 임박 경고 토스트 창 표시 (3초 표시, 주황색 액센트).
+
+        Args:
+            message: 표시할 경고 메시지
+        """
+        _WARNING_DURATION_MS = 3000
+        _UI_WARN_COLOR = "#E67E22"     # 주황색 (경고)
+        _UI_WARN_LIGHT = "#2D1A00"     # 주황 틴트 배경
+
+        ff = _resolve_ui_font(self._tk_root)
+
+        warn_toast = tk.Toplevel(self._tk_root)
+        warn_toast.overrideredirect(True)
+        warn_toast.attributes("-topmost", True)
+        warn_toast.configure(bg=UI_CARD_COLOR)
+
+        outer = tk.Frame(warn_toast, bg=UI_CARD_COLOR)
+        outer.pack(padx=14, pady=12)
+
+        badge = tk.Frame(outer, bg=_UI_WARN_LIGHT, width=32, height=32)
+        badge.pack(side=tk.LEFT, padx=(0, 12))
+        badge.pack_propagate(False)
+        tk.Label(
+            badge,
+            text="⚠",
+            font=(ff, 14, "bold"),
+            fg=_UI_WARN_COLOR,
+            bg=_UI_WARN_LIGHT,
+        ).place(relx=0.5, rely=0.5, anchor=tk.CENTER)
+
+        tk.Label(
+            outer,
+            text=message,
+            font=(ff, 11),
+            fg=UI_FG_COLOR,
+            bg=UI_CARD_COLOR,
+            anchor=tk.W,
+            justify=tk.LEFT,
+        ).pack(side=tk.LEFT)
+
+        tk.Frame(warn_toast, bg=_UI_WARN_COLOR, height=2).pack(fill=tk.X)
+
+        warn_toast.update_idletasks()
+        tw = warn_toast.winfo_reqwidth()
+        th = warn_toast.winfo_reqheight()
+        sw = warn_toast.winfo_screenwidth()
+        sh = warn_toast.winfo_screenheight()
+        # 기존 확인 토스트와 겹치지 않도록 조금 위에 배치
+        x = (sw - tw) // 2
+        y = sh - th - 80 - th - 12
+        warn_toast.geometry(f"+{x}+{y}")
+
+        warn_toast.update()
+        try:
+            hwnd = self._get_hwnd(warn_toast)
+            self._apply_rounded_glass(hwnd, warn_toast.winfo_width(), warn_toast.winfo_height())
+        except Exception:
+            pass
+
+        def _close_warn() -> None:
+            try:
+                warn_toast.destroy()
+            except tk.TclError:
+                pass
+
+        warn_toast.after(_WARNING_DURATION_MS, _close_warn)
 
     def _show_confirm_toast(self, message: str) -> None:
         """5초 후 자동으로 사라지는 확인 토스트 창 표시 (glass 다크 스타일).
@@ -1287,6 +1403,10 @@ class ShutdownScheduler:
             self._shutdown_timer.cancel()
             self._shutdown_timer = None
 
+        for t in self._warning_timers:
+            t.cancel()
+        self._warning_timers.clear()
+
         if self._tooltip_timer:
             self._tooltip_timer.cancel()
             self._tooltip_timer = None
@@ -1327,6 +1447,9 @@ class ShutdownScheduler:
             self._tooltip_timer.cancel()
         if self._shutdown_timer:
             self._shutdown_timer.cancel()
+        for t in self._warning_timers:
+            t.cancel()
+        self._warning_timers.clear()
         keyboard.unhook_all()
         if self.tray_icon:
             self.tray_icon.stop()
