@@ -84,7 +84,7 @@ QUICK_ADD_BUTTONS: list[tuple[str, int]] = [
 ]
 
 # --- 확인 토스트 ---
-CONFIRM_TOAST_DURATION_MS: int = 5000
+CONFIRM_TOAST_DURATION_MS: int = 3000
 
 # --- 트레이 아이콘 ---
 TRAY_ICON_SIZE: tuple[int, int] = (64, 64)

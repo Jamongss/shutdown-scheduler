@@ -1284,6 +1284,36 @@ class ShutdownScheduler:
         except Exception:
             pass
 
+    @staticmethod
+    def _fade_out_toast(
+        window: tk.Toplevel,
+        on_done: Callable[[], None],
+        alpha: float = 1.0,
+    ) -> None:
+        """토스트 창을 서서히 투명하게 만들며 닫는 페이드아웃 애니메이션.
+
+        50ms 간격으로 알파값을 감소시켜 약 0.7초에 걸쳐 사라진다.
+
+        Args:
+            window: 페이드아웃할 Toplevel 창
+            on_done: 완전히 사라진 후 호출할 정리 콜백
+            alpha: 현재 불투명도 (1.0 ~ 0.0)
+        """
+        _STEP = 0.07   # 한 스텝에 감소할 알파값 (1.0 / 0.07 ≈ 14스텝 × 50ms ≈ 0.7초)
+        _INTERVAL = 50  # ms
+        try:
+            if alpha <= 0:
+                window.destroy()
+                on_done()
+                return
+            window.attributes("-alpha", alpha)
+            window.after(
+                _INTERVAL,
+                lambda: ShutdownScheduler._fade_out_toast(window, on_done, alpha - _STEP),
+            )
+        except tk.TclError:
+            on_done()
+
     def _show_warning_toast(self, message: str) -> None:
         """종료 임박 경고 토스트 창 표시 (3초 표시, 주황색 액센트).
 
@@ -1347,13 +1377,10 @@ class ShutdownScheduler:
         except Exception:
             pass
 
-        def _close_warn() -> None:
-            try:
-                warn_toast.destroy()
-            except tk.TclError:
-                pass
-
-        warn_toast.after(_WARNING_DURATION_MS, _close_warn)
+        warn_toast.after(
+            _WARNING_DURATION_MS,
+            lambda: self._fade_out_toast(warn_toast, lambda: None),
+        )
 
     def _show_confirm_toast(self, message: str) -> None:
         """5초 후 자동으로 사라지는 확인 토스트 창 표시 (glass 다크 스타일).
@@ -1365,15 +1392,17 @@ class ShutdownScheduler:
         """
         ff = _resolve_ui_font(self._tk_root)
 
-        # 기존 토스트가 살아있으면 메시지만 교체
+        # 기존 토스트가 살아있으면 메시지만 교체하고 알파·타이머 리셋
         if self._toast_window is not None:
             try:
                 if self._toast_label is not None:
                     self._toast_label.configure(text=message)
                 if self._toast_after_id is not None:
                     self._toast_window.after_cancel(self._toast_after_id)
+                self._toast_window.attributes("-alpha", 1.0)
                 self._toast_after_id = self._toast_window.after(
-                    CONFIRM_TOAST_DURATION_MS, self._close_toast
+                    CONFIRM_TOAST_DURATION_MS,
+                    lambda: self._fade_out_toast(self._toast_window, self._close_toast),
                 )
                 return
             except tk.TclError:
@@ -1440,7 +1469,10 @@ class ShutdownScheduler:
         except Exception:
             pass
 
-        self._toast_after_id = toast.after(CONFIRM_TOAST_DURATION_MS, self._close_toast)
+        self._toast_after_id = toast.after(
+            CONFIRM_TOAST_DURATION_MS,
+            lambda: self._fade_out_toast(self._toast_window, self._close_toast),
+        )
 
     def _close_toast(self) -> None:
         """토스트 창 닫기 및 참조 초기화."""
