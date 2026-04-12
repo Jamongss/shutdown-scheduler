@@ -120,12 +120,9 @@ def _resolve_ui_font(widget: tk.Misc) -> str:
 def _bring_to_front(window: tk.Toplevel) -> None:
     """topmost 없이 창을 최상단으로 가져온다.
 
-    topmost=True 방식은 이후에도 창이 항상 앞에 고정되어 다른 앱 전환을
-    방해하는 부작용이 있다. Windows API SetForegroundWindow를 직접 호출하면
-    일회성으로만 앞으로 올라오고 이후에는 일반 창처럼 동작한다.
-
-    CTkToplevel은 wm_frame()이 빈 문자열을 반환할 수 있으므로
-    winfo_id() 폴백을 사용한다.
+    Windows는 백그라운드 프로세스의 SetForegroundWindow를 차단한다.
+    AttachThreadInput으로 현재 포그라운드 스레드에 입력 큐를 붙인 뒤
+    SetForegroundWindow를 호출하면 이 제한을 우회할 수 있다.
 
     Args:
         window: 앞으로 가져올 Toplevel 창
@@ -133,18 +130,36 @@ def _bring_to_front(window: tk.Toplevel) -> None:
     try:
         import ctypes
         user32 = ctypes.windll.user32
-        # wm_frame() 시도 — 빈 문자열이면 winfo_id() 사용
+        kernel32 = ctypes.windll.kernel32
+
+        # hwnd 획득: wm_frame() → GetAncestor(GA_ROOT=2)
         try:
             frame_str = window.wm_frame()
             hwnd = int(frame_str, 16) if frame_str else window.winfo_id()
         except Exception:
             hwnd = window.winfo_id()
-        # GA_ROOT=2: 실제 최상위 Win32 핸들로 올라감
         root_hwnd = user32.GetAncestor(hwnd, 2)
         hwnd = root_hwnd if root_hwnd else hwnd
-        if hwnd:
-            user32.ShowWindow(hwnd, 9)        # SW_RESTORE=9: 최소화 해제
-            user32.SetForegroundWindow(hwnd)
+
+        if not hwnd:
+            return
+
+        # 현재 포그라운드 창의 스레드 ID
+        fg_hwnd = user32.GetForegroundWindow()
+        fg_tid = user32.GetWindowThreadProcessId(fg_hwnd, None)
+        my_tid = kernel32.GetCurrentThreadId()
+
+        # 포그라운드 스레드에 입력 큐 부착 → SetForegroundWindow 차단 우회
+        attached = False
+        if fg_tid and fg_tid != my_tid:
+            attached = bool(user32.AttachThreadInput(my_tid, fg_tid, True))
+
+        user32.ShowWindow(hwnd, 9)        # SW_RESTORE=9
+        user32.SetForegroundWindow(hwnd)
+
+        if attached:
+            user32.AttachThreadInput(my_tid, fg_tid, False)
+
     except Exception:
         pass
     try:
