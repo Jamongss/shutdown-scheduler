@@ -880,6 +880,7 @@ class ShutdownScheduler:
         self._toast_label: Optional[tk.Label] = None
         self._toast_window: Optional[tk.Toplevel] = None
         self._toast_after_id: Optional[str] = None
+        self._toast_is_cancel: bool = False
         self._warning_timers: list[threading.Timer] = []
 
         # tkinter 루트 (숨김)
@@ -1493,22 +1494,24 @@ class ShutdownScheduler:
             is_cancel: True면 취소 토스트 (파란색), False면 예약 토스트 (빨간색)
         """
         # 기존 토스트가 살아있으면 메시지만 교체하고 알파·타이머 리셋
+        # 단, is_cancel 상태가 다르면 색상이 달라져야 하므로 기존 창을 닫고 새로 생성
         if self._toast_window is not None:
-            try:
-                if self._toast_label is not None:
-                    self._toast_label.configure(text=message)
-                if self._toast_after_id is not None:
-                    self._toast_window.after_cancel(self._toast_after_id)
-                self._toast_window.attributes("-alpha", 1.0)
-                self._toast_after_id = self._toast_window.after(
-                    CONFIRM_TOAST_DURATION_MS,
-                    lambda: self._fade_out_toast(self._toast_window, self._close_toast),
-                )
-                return
-            except tk.TclError:
-                self._toast_window = None
-                self._toast_label = None
-                self._toast_after_id = None
+            if self._toast_is_cancel == is_cancel:
+                try:
+                    if self._toast_label is not None:
+                        self._toast_label.configure(text=message)
+                    if self._toast_after_id is not None:
+                        self._toast_window.after_cancel(self._toast_after_id)
+                    self._toast_window.attributes("-alpha", 1.0)
+                    self._toast_after_id = self._toast_window.after(
+                        CONFIRM_TOAST_DURATION_MS,
+                        lambda: self._fade_out_toast(self._toast_window, self._close_toast),
+                    )
+                    return
+                except tk.TclError:
+                    pass
+            # is_cancel이 달라졌거나 TclError — 기존 토스트 즉시 닫고 새로 생성
+            self._close_toast()
 
         label = (
             ACTION_LABEL_RESTART
@@ -1526,6 +1529,7 @@ class ShutdownScheduler:
             badge_bg=UI_TOAST_BADGE_BG,
         )
         self._toast_window = win
+        self._toast_is_cancel = is_cancel
 
         # 본문 레이블 참조 저장 (메시지 교체용)
         # body 내 두 번째 Label이 본문
@@ -1552,6 +1556,7 @@ class ShutdownScheduler:
         self._toast_window = None
         self._toast_label = None
         self._toast_after_id = None
+        self._toast_is_cancel = False
 
     def _execute_action(self) -> None:
         """실제 종료/재시작 명령 실행 (타이머 콜백)."""
