@@ -1288,28 +1288,33 @@ class ShutdownScheduler:
     def _fade_out_toast(
         window: tk.Toplevel,
         on_done: Callable[[], None],
-        alpha: float = 1.0,
+        progress: float = 0.0,
     ) -> None:
-        """토스트 창을 서서히 투명하게 만들며 닫는 페이드아웃 애니메이션.
+        """토스트 창을 ease-in 커브로 서서히 투명하게 만들며 닫는 애니메이션.
 
-        50ms 간격으로 알파값을 감소시켜 약 0.7초에 걸쳐 사라진다.
+        30ms 간격, 약 0.8초(27스텝)에 걸쳐 사라진다.
+        progress(0.0→1.0)의 제곱을 알파 감소에 적용해 처음엔 천천히,
+        끝으로 갈수록 빠르게 사라지는 자연스러운 효과를 낸다.
 
         Args:
             window: 페이드아웃할 Toplevel 창
             on_done: 완전히 사라진 후 호출할 정리 콜백
-            alpha: 현재 불투명도 (1.0 ~ 0.0)
+            progress: 애니메이션 진행도 (0.0 ~ 1.0)
         """
-        _STEP = 0.07   # 한 스텝에 감소할 알파값 (1.0 / 0.07 ≈ 14스텝 × 50ms ≈ 0.7초)
-        _INTERVAL = 50  # ms
+        _TOTAL_STEPS = 27
+        _INTERVAL_MS = 30
         try:
-            if alpha <= 0:
+            if progress >= 1.0:
                 window.destroy()
                 on_done()
                 return
-            window.attributes("-alpha", alpha)
+            # ease-in: progress² 로 초반은 완만하게, 후반은 급격하게 투명해짐
+            alpha = 1.0 - (progress ** 2)
+            window.attributes("-alpha", max(0.0, alpha))
+            next_progress = progress + (1.0 / _TOTAL_STEPS)
             window.after(
-                _INTERVAL,
-                lambda: ShutdownScheduler._fade_out_toast(window, on_done, alpha - _STEP),
+                _INTERVAL_MS,
+                lambda: ShutdownScheduler._fade_out_toast(window, on_done, next_progress),
             )
         except tk.TclError:
             on_done()
