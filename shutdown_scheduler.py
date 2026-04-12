@@ -53,6 +53,8 @@ from cfg.config import (
     UI_ACCENT_TEXT,
     UI_BG_COLOR,
     UI_BORDER_COLOR,
+    UI_TOAST_BG,
+    UI_TOAST_BORDER,
     UI_BTN_BG,
     UI_BTN_FG,
     UI_BTN_HOVER,
@@ -1348,21 +1350,21 @@ class ShutdownScheduler:
         win = tk.Toplevel(self._tk_root)
         win.overrideredirect(True)
         win.attributes("-topmost", True)
-        win.configure(bg=UI_BORDER_COLOR)  # 외곽 테두리 색
+        win.configure(bg=UI_TOAST_BORDER)  # 외곽 테두리 색
 
         # ── 외곽 테두리 프레임 (1px border 효과)
-        border = tk.Frame(win, bg=UI_BORDER_COLOR)
+        border = tk.Frame(win, bg=UI_TOAST_BORDER)
         border.pack(fill=tk.BOTH, expand=True, padx=1, pady=1)
 
         # ── 좌측 컬러 바
         tk.Frame(border, bg=accent_color, width=4).pack(side=tk.LEFT, fill=tk.Y)
 
         # ── 본문 영역
-        body = tk.Frame(border, bg=UI_CARD_COLOR)
+        body = tk.Frame(border, bg=UI_TOAST_BG)
         body.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
         # ── 상단: 아이콘 뱃지 + 제목 + 닫기 버튼
-        top_row = tk.Frame(body, bg=UI_CARD_COLOR)
+        top_row = tk.Frame(body, bg=UI_TOAST_BG)
         top_row.pack(fill=tk.X, padx=14, pady=(12, 4))
 
         # 아이콘 뱃지
@@ -1383,7 +1385,7 @@ class ShutdownScheduler:
             text=title,
             font=(ff, 12, "bold"),
             fg=UI_FG_COLOR,
-            bg=UI_CARD_COLOR,
+            bg=UI_TOAST_BG,
             anchor=tk.W,
         ).pack(side=tk.LEFT, fill=tk.X, expand=True)
 
@@ -1393,7 +1395,7 @@ class ShutdownScheduler:
             text="✕",
             font=(ff, 10),
             fg=UI_MUTED_FG,
-            bg=UI_CARD_COLOR,
+            bg=UI_TOAST_BG,
             cursor="hand2",
         )
         close_btn.pack(side=tk.RIGHT, padx=(4, 0))
@@ -1404,7 +1406,7 @@ class ShutdownScheduler:
             text=message,
             font=(ff, 10),
             fg=UI_SUB_FG_COLOR,
-            bg=UI_CARD_COLOR,
+            bg=UI_TOAST_BG,
             anchor=tk.W,
             justify=tk.LEFT,
             wraplength=_TOAST_W - 80,

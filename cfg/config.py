@@ -44,6 +44,10 @@ UI_BTN_FG: str = "#C9D1D9"           # 버튼 텍스트
 # 구분선
 UI_BORDER_COLOR: str = "#30363D"     # glass 테두리
 
+# 토스트 전용 블랙 팔레트
+UI_TOAST_BG: str = "#0A0A0A"         # 토스트 배경 (딥 블랙)
+UI_TOAST_BORDER: str = "#2A2A2A"     # 토스트 외곽선 (다크 그레이)
+
 # 의미 색상
 UI_DANGER_COLOR: str = "#F85149"     # 종료 (레드)
 UI_DANGER_BG: str = "#2D1117"
