@@ -1319,6 +1319,119 @@ class ShutdownScheduler:
         except tk.TclError:
             on_done()
 
+    def _build_toast(
+        self,
+        title: str,
+        message: str,
+        icon: str,
+        accent_color: str,
+        badge_bg: str,
+    ) -> tuple[tk.Toplevel, tk.Label]:
+        """고급 토스트 창 생성 및 배치.
+
+        좌측 컬러 바 + 아이콘 뱃지 + 제목/본문 2줄 구조.
+        고정 너비 360px, 우상단 닫기(×) 버튼 포함.
+
+        Args:
+            title: 굵은 제목 텍스트
+            message: 본문 텍스트
+            icon: 아이콘 문자
+            accent_color: 좌측 바·아이콘 색상
+            badge_bg: 아이콘 뱃지 배경색
+
+        Returns:
+            생성된 tk.Toplevel 인스턴스
+        """
+        _TOAST_W = 360
+        ff = _resolve_ui_font(self._tk_root)
+
+        win = tk.Toplevel(self._tk_root)
+        win.overrideredirect(True)
+        win.attributes("-topmost", True)
+        win.configure(bg=UI_BORDER_COLOR)  # 외곽 테두리 색
+
+        # ── 외곽 테두리 프레임 (1px border 효과)
+        border = tk.Frame(win, bg=UI_BORDER_COLOR)
+        border.pack(fill=tk.BOTH, expand=True, padx=1, pady=1)
+
+        # ── 좌측 컬러 바
+        tk.Frame(border, bg=accent_color, width=4).pack(side=tk.LEFT, fill=tk.Y)
+
+        # ── 본문 영역
+        body = tk.Frame(border, bg=UI_CARD_COLOR)
+        body.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        # ── 상단: 아이콘 뱃지 + 제목 + 닫기 버튼
+        top_row = tk.Frame(body, bg=UI_CARD_COLOR)
+        top_row.pack(fill=tk.X, padx=14, pady=(12, 4))
+
+        # 아이콘 뱃지
+        badge = tk.Frame(top_row, bg=badge_bg, width=36, height=36)
+        badge.pack(side=tk.LEFT, padx=(0, 10))
+        badge.pack_propagate(False)
+        tk.Label(
+            badge,
+            text=icon,
+            font=(ff, 16, "bold"),
+            fg=accent_color,
+            bg=badge_bg,
+        ).place(relx=0.5, rely=0.5, anchor=tk.CENTER)
+
+        # 제목
+        tk.Label(
+            top_row,
+            text=title,
+            font=(ff, 12, "bold"),
+            fg=UI_FG_COLOR,
+            bg=UI_CARD_COLOR,
+            anchor=tk.W,
+        ).pack(side=tk.LEFT, fill=tk.X, expand=True)
+
+        # 닫기 버튼
+        close_btn = tk.Label(
+            top_row,
+            text="✕",
+            font=(ff, 10),
+            fg=UI_MUTED_FG,
+            bg=UI_CARD_COLOR,
+            cursor="hand2",
+        )
+        close_btn.pack(side=tk.RIGHT, padx=(4, 0))
+
+        # ── 본문 메시지
+        tk.Label(
+            body,
+            text=message,
+            font=(ff, 10),
+            fg=UI_SUB_FG_COLOR,
+            bg=UI_CARD_COLOR,
+            anchor=tk.W,
+            justify=tk.LEFT,
+            wraplength=_TOAST_W - 80,
+        ).pack(fill=tk.X, padx=(60, 14), pady=(0, 12))
+
+        # ── 위치 계산 및 배치
+        win.update_idletasks()
+        th = win.winfo_reqheight() or 80
+        try:
+            sw = self._tk_root.winfo_screenwidth()
+            sh = self._tk_root.winfo_screenheight()
+        except Exception:
+            sw, sh = 1920, 1080
+        x = (sw - _TOAST_W) // 2
+        y = sh - th - 80
+        win.geometry(f"{_TOAST_W}x{th}+{x}+{y}")
+
+        # ── Glass 효과
+        win.update()
+        try:
+            hwnd = self._get_hwnd(win)
+            self._apply_rounded_glass(hwnd, _TOAST_W, win.winfo_height())
+        except Exception:
+            pass
+
+        return win, close_btn
+
     def _show_warning_toast(self, message: str) -> None:
         """종료 임박 경고 토스트 창 표시 (3초 표시, 주황색 액센트).
 
@@ -1326,77 +1439,37 @@ class ShutdownScheduler:
             message: 표시할 경고 메시지
         """
         _WARNING_DURATION_MS = 3000
-        _UI_WARN_COLOR = "#E67E22"     # 주황색 (경고)
-        _UI_WARN_LIGHT = "#2D1A00"     # 주황 틴트 배경
+        _UI_WARN_COLOR = "#E67E22"
+        _UI_WARN_LIGHT = "#2D1A00"
 
-        ff = _resolve_ui_font(self._tk_root)
-
-        warn_toast = tk.Toplevel(self._tk_root)
-        warn_toast.overrideredirect(True)
-        warn_toast.attributes("-topmost", True)
-        warn_toast.configure(bg=UI_CARD_COLOR)
-
-        outer = tk.Frame(warn_toast, bg=UI_CARD_COLOR)
-        outer.pack(padx=14, pady=12)
-
-        badge = tk.Frame(outer, bg=_UI_WARN_LIGHT, width=32, height=32)
-        badge.pack(side=tk.LEFT, padx=(0, 12))
-        badge.pack_propagate(False)
-        tk.Label(
-            badge,
-            text="⚠",
-            font=(ff, 14, "bold"),
-            fg=_UI_WARN_COLOR,
-            bg=_UI_WARN_LIGHT,
-        ).place(relx=0.5, rely=0.5, anchor=tk.CENTER)
-
-        tk.Label(
-            outer,
-            text=message,
-            font=(ff, 11),
-            fg=UI_FG_COLOR,
-            bg=UI_CARD_COLOR,
-            anchor=tk.W,
-            justify=tk.LEFT,
-        ).pack(side=tk.LEFT)
-
-        tk.Frame(warn_toast, bg=_UI_WARN_COLOR, height=2).pack(fill=tk.X)
-
-        warn_toast.update_idletasks()
-        tw = warn_toast.winfo_reqwidth() or 300
-        th = warn_toast.winfo_reqheight() or 60
-        try:
-            sw = self._tk_root.winfo_screenwidth()
-            sh = self._tk_root.winfo_screenheight()
-        except Exception:
-            sw, sh = 1920, 1080
-        # 확인 토스트(하단 80px)가 없을 수도 있으므로 단독 위치로 배치
-        x = (sw - tw) // 2
-        y = sh - th - 80
-        warn_toast.geometry(f"+{x}+{y}")
-
-        warn_toast.update()
-        try:
-            hwnd = self._get_hwnd(warn_toast)
-            self._apply_rounded_glass(hwnd, warn_toast.winfo_width(), warn_toast.winfo_height())
-        except Exception:
-            pass
-
-        warn_toast.after(
-            _WARNING_DURATION_MS,
-            lambda: self._fade_out_toast(warn_toast, lambda: None),
+        label = (
+            ACTION_LABEL_RESTART
+            if self.scheduled_action == ACTION_RESTART
+            else ACTION_LABEL_SHUTDOWN
         )
 
+        win, close_btn = self._build_toast(
+            title=f"{label} 예약 알림",
+            message=message,
+            icon="⏱",
+            accent_color=_UI_WARN_COLOR,
+            badge_bg=_UI_WARN_LIGHT,
+        )
+
+        def _dismiss() -> None:
+            self._fade_out_toast(win, lambda: None)
+
+        close_btn.bind("<Button-1>", lambda e: _dismiss())
+        win.after(_WARNING_DURATION_MS, _dismiss)
+
     def _show_confirm_toast(self, message: str) -> None:
-        """5초 후 자동으로 사라지는 확인 토스트 창 표시 (glass 다크 스타일).
+        """3초 후 자동으로 사라지는 확인 토스트 창 표시.
 
         토스트가 이미 표시 중이면 메시지만 교체하고 타이머를 재시작한다.
 
         Args:
             message: 표시할 메시지
         """
-        ff = _resolve_ui_font(self._tk_root)
-
         # 기존 토스트가 살아있으면 메시지만 교체하고 알파·타이머 리셋
         if self._toast_window is not None:
             try:
@@ -1415,66 +1488,33 @@ class ShutdownScheduler:
                 self._toast_label = None
                 self._toast_after_id = None
 
-        toast = tk.Toplevel(self._tk_root)
-        toast.overrideredirect(True)
-        toast.attributes("-topmost", True)
-        # Acrylic 적용 시 배경색은 투명에 가깝게 — 실제 색은 Acrylic이 담당
-        toast.configure(bg=UI_CARD_COLOR)
-        self._toast_window = toast
-
-        # ── 아이콘 뱃지 + 메시지 가로 배치
-        outer = tk.Frame(toast, bg=UI_CARD_COLOR)
-        outer.pack(padx=14, pady=12)
-
-        # 아이콘 뱃지
-        badge = tk.Frame(outer, bg=UI_ACCENT_LIGHT, width=32, height=32)
-        badge.pack(side=tk.LEFT, padx=(0, 12))
-        badge.pack_propagate(False)
-        tk.Label(
-            badge,
-            text="⏻",
-            font=(ff, 14, "bold"),
-            fg=UI_ACCENT_COLOR,
-            bg=UI_ACCENT_LIGHT,
-        ).place(relx=0.5, rely=0.5, anchor=tk.CENTER)
-
-        # 메시지
-        lbl = tk.Label(
-            outer,
-            text=message,
-            font=(ff, 11),
-            fg=UI_FG_COLOR,
-            bg=UI_CARD_COLOR,
-            anchor=tk.W,
-            justify=tk.LEFT,
+        label = (
+            ACTION_LABEL_RESTART
+            if self.scheduled_action == ACTION_RESTART
+            else ACTION_LABEL_SHUTDOWN
         )
-        lbl.pack(side=tk.LEFT)
-        self._toast_label = lbl
+        title = f"{label} 예약"
 
-        # ── 하단 액센트 선
-        tk.Frame(toast, bg=UI_ACCENT_COLOR, height=2).pack(fill=tk.X)
+        win, close_btn = self._build_toast(
+            title=title,
+            message=message,
+            icon="⏻",
+            accent_color=UI_ACCENT_COLOR,
+            badge_bg=UI_ACCENT_LIGHT,
+        )
+        self._toast_window = win
 
-        # 화면 중앙 하단 배치
-        toast.update_idletasks()
-        tw = toast.winfo_reqwidth()
-        th = toast.winfo_reqheight()
-        sw = toast.winfo_screenwidth()
-        sh = toast.winfo_screenheight()
-        x = (sw - tw) // 2
-        y = sh - th - 80
-        toast.geometry(f"+{x}+{y}")
+        # 본문 레이블 참조 저장 (메시지 교체용)
+        # body 내 두 번째 Label이 본문
+        body_widgets = win.winfo_children()[0].winfo_children()[1].winfo_children()
+        self._toast_label = body_widgets[1] if len(body_widgets) > 1 else None
 
-        # 창이 완전히 렌더링된 뒤 Win32 핸들 획득 → 둥근 모서리 + glass 적용
-        toast.update()
-        try:
-            hwnd = self._get_hwnd(toast)
-            tw_actual = toast.winfo_width()
-            th_actual = toast.winfo_height()
-            self._apply_rounded_glass(hwnd, tw_actual, th_actual)
-        except Exception:
-            pass
+        def _dismiss() -> None:
+            self._fade_out_toast(self._toast_window, self._close_toast)
 
-        self._toast_after_id = toast.after(
+        close_btn.bind("<Button-1>", lambda e: _dismiss())
+
+        self._toast_after_id = win.after(
             CONFIRM_TOAST_DURATION_MS,
             lambda: self._fade_out_toast(self._toast_window, self._close_toast),
         )
