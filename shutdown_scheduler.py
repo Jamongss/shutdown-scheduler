@@ -124,18 +124,26 @@ def _bring_to_front(window: tk.Toplevel) -> None:
     방해하는 부작용이 있다. Windows API SetForegroundWindow를 직접 호출하면
     일회성으로만 앞으로 올라오고 이후에는 일반 창처럼 동작한다.
 
+    CTkToplevel은 wm_frame()이 빈 문자열을 반환할 수 있으므로
+    winfo_id() 폴백을 사용한다.
+
     Args:
         window: 앞으로 가져올 Toplevel 창
     """
     try:
         import ctypes
-        # wm_frame() → GetAncestor(GA_ROOT=2) 로 실제 Win32 최상위 핸들 획득
         user32 = ctypes.windll.user32
-        frame_id = int(window.wm_frame(), 16)
-        hwnd = user32.GetAncestor(frame_id, 2)
+        # wm_frame() 시도 — 빈 문자열이면 winfo_id() 사용
+        try:
+            frame_str = window.wm_frame()
+            hwnd = int(frame_str, 16) if frame_str else window.winfo_id()
+        except Exception:
+            hwnd = window.winfo_id()
+        # GA_ROOT=2: 실제 최상위 Win32 핸들로 올라감
+        root_hwnd = user32.GetAncestor(hwnd, 2)
+        hwnd = root_hwnd if root_hwnd else hwnd
         if hwnd:
-            # AllowSetForegroundWindow(-1) 권한 우회 후 SetForegroundWindow
-            ctypes.windll.user32.AllowSetForegroundWindow(-1)
+            user32.ShowWindow(hwnd, 9)        # SW_RESTORE=9: 최소화 해제
             user32.SetForegroundWindow(hwnd)
     except Exception:
         pass
