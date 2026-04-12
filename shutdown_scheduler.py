@@ -1227,7 +1227,12 @@ class ShutdownScheduler:
         return root_hwnd if root_hwnd else hwnd
 
     @staticmethod
-    def _apply_rounded_glass(hwnd: int, width: int, height: int) -> None:
+    def _apply_rounded_glass(
+        hwnd: int,
+        width: int,
+        height: int,
+        gradient_color: int = 0xD037291F,
+    ) -> None:
         """Windows API로 둥근 모서리 + Acrylic glass 효과 적용.
 
         Windows 11: DwmSetWindowAttribute(DWMWCP_ROUND)로 네이티브 둥근 모서리.
@@ -1238,6 +1243,7 @@ class ShutdownScheduler:
             hwnd: Win32 창 핸들
             width: 창 너비 (px)
             height: 창 높이 (px)
+            gradient_color: Acrylic GradientColor (AABBGGRR 형식, 기본값=다크 청회색)
         """
         import ctypes
 
@@ -1259,7 +1265,7 @@ class ShutdownScheduler:
             pass
 
         # ── 3. Acrylic blur (ACCENT_ENABLE_ACRYLICBLURBEHIND = 4)
-        #    GradientColor: AABBGGRR — UI_CARD2_COLOR #1F2937 + 불투명도 D0(82%)
+        #    GradientColor: AABBGGRR 형식
         try:
             class ACCENTPOLICY(ctypes.Structure):
                 _fields_ = [
@@ -1276,7 +1282,7 @@ class ShutdownScheduler:
                     ("SizeOfData", ctypes.c_size_t),
                 ]
 
-            accent = ACCENTPOLICY(4, 0, 0xD037291F, 0)
+            accent = ACCENTPOLICY(4, 0, gradient_color, 0)
             data = WINCOMPATTRDATA(
                 19,
                 ctypes.cast(ctypes.byref(accent), ctypes.c_void_p),
@@ -1428,7 +1434,8 @@ class ShutdownScheduler:
         win.update()
         try:
             hwnd = self._get_hwnd(win)
-            self._apply_rounded_glass(hwnd, _TOAST_W, win.winfo_height())
+            # 토스트 전용 블랙 Acrylic: AABBGGRR = E8(91% 불투명) + 000000(블랙)
+            self._apply_rounded_glass(hwnd, _TOAST_W, win.winfo_height(), 0xE8000000)
         except Exception:
             pass
 
