@@ -944,34 +944,35 @@ class ShutdownScheduler:
         )
         self.tray_icon.run()
 
-    @staticmethod
-    def _is_right_alt_pressed() -> bool:
-        """우측 Alt(한/영 키) 눌림 여부 확인.
-
-        Returns:
-            우측 Alt가 눌려 있으면 True
-        """
-        try:
-            return keyboard.is_pressed("right alt")
-        except Exception:
-            return False
-
     def _register_hotkeys(self) -> None:
         """글로벌 단축키 등록.
 
-        Alt+Q / Alt+S 단축키는 우측 Alt(한/영 키) 입력을 무시한다.
+        keyboard.hook으로 raw 키 이벤트를 직접 감지한다.
+        left alt + Q/S 조합만 처리하고, 우측 Alt(한/영 키)는 무시한다.
         """
-        def _on_schedule() -> None:
-            if not self._is_right_alt_pressed():
-                self._queue.put("open_dialog")
+        # 단축키 상태 추적
+        _state: dict[str, bool] = {"left_alt": False}
 
-        def _on_cancel() -> None:
-            if not self._is_right_alt_pressed():
+        def _on_key_event(event: keyboard.KeyboardEvent) -> None:
+            # left alt 눌림/떼기 추적 (scan code 56 = left alt)
+            if event.scan_code == 56:
+                _state["left_alt"] = (event.event_type == keyboard.KEY_DOWN)
+                return
+
+            if event.event_type != keyboard.KEY_DOWN:
+                return
+
+            if not _state["left_alt"]:
+                return
+
+            name = (event.name or "").lower()
+            if name == "q":
+                self._queue.put("open_dialog")
+            elif name == "s":
                 self._queue.put("cancel")
 
         try:
-            keyboard.add_hotkey(HOTKEY_SCHEDULE, _on_schedule)
-            keyboard.add_hotkey(HOTKEY_CANCEL, _on_cancel)
+            keyboard.hook(_on_key_event)
         except Exception as e:
             print(f"단축키 등록 실패: {e}", file=sys.stderr)
 
@@ -1103,10 +1104,10 @@ class ShutdownScheduler:
         self._shutdown_timer.daemon = True
         self._shutdown_timer.start()
 
-        # 종료 10분/5분/1분 전 토스트 알림 등록
+        # 종료 10분/5분/1분 전 토스트 알림 등록 (예약 시간보다 짧은 경우만)
         for warn_sec, warn_label in [(600, "10분"), (300, "5분"), (60, "1분")]:
             delay = total_seconds - warn_sec
-            if delay > 0:
+            if delay >= 0 and total_seconds > warn_sec:
                 t = threading.Timer(
                     delay,
                     lambda wl=warn_label: self._queue.put(f"warn:{wl}"),
@@ -1255,9 +1256,9 @@ class ShutdownScheduler:
         warn_toast.update_idletasks()
         tw = warn_toast.winfo_reqwidth()
         th = warn_toast.winfo_reqheight()
-        sw = warn_toast.winfo_screenwidth()
-        sh = warn_toast.winfo_screenheight()
-        # 기존 확인 토스트와 겹치지 않도록 조금 위에 배치
+        sw = self._tk_root.winfo_screenwidth()
+        sh = self._tk_root.winfo_screenheight()
+        # 기존 확인 토스트(하단 80px) 위에 12px 간격으로 배치
         x = (sw - tw) // 2
         y = sh - th - 80 - th - 12
         warn_toast.geometry(f"+{x}+{y}")
