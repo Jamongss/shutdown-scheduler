@@ -359,14 +359,50 @@ class ScheduleDialog:
             border_width=1,
             border_color=UI_DANGER_COLOR,
         )
+        self._countdown_frame.grid_columnconfigure(0, weight=1)
+
         self._countdown_label = ctk.CTkLabel(
             self._countdown_frame,
             textvariable=self._countdown_var,
             font=(ff, 12, "bold"),
             text_color=UI_DANGER_COLOR,
-            anchor="center",
+            anchor="w",
         )
-        self._countdown_label.pack(padx=12, pady=6)
+        self._countdown_label.grid(row=0, column=0, padx=(12, 4), pady=6, sticky="ew")
+
+        # ■ 취소 버튼
+        self._btn_cancel_sched = ctk.CTkButton(
+            self._countdown_frame,
+            text="■",
+            font=(ff, 11, "bold"),
+            width=28, height=28,
+            corner_radius=6,
+            fg_color=UI_DANGER_BG,
+            hover_color=UI_DANGER_COLOR,
+            border_width=1,
+            border_color=UI_DANGER_COLOR,
+            text_color=UI_DANGER_COLOR,
+            command=self._on_cancel_schedule,
+        )
+        self._btn_cancel_sched.grid(row=0, column=1, padx=(0, 4), pady=6)
+
+        # ⏸/▶ 일시정지·재개 버튼 (토글)
+        is_paused = bool(self._scheduler and self._scheduler.is_paused)
+        self._btn_pause_resume = ctk.CTkButton(
+            self._countdown_frame,
+            text="▶" if is_paused else "⏸",
+            font=(ff, 11, "bold"),
+            width=28, height=28,
+            corner_radius=6,
+            fg_color=UI_DANGER_BG,
+            hover_color=UI_DANGER_COLOR,
+            border_width=1,
+            border_color=UI_DANGER_COLOR,
+            text_color=UI_DANGER_COLOR,
+            command=self._on_pause_resume,
+        )
+        self._btn_pause_resume.grid(row=0, column=2, padx=(0, 8), pady=6)
+
         # 예약 중이면 즉시 표시, 아니면 숨김
         if self._scheduler and self._scheduler.is_active:
             self._countdown_frame.grid(row=1, column=0, sticky="ew", padx=24, pady=(10, 0))
@@ -512,7 +548,7 @@ class ScheduleDialog:
         # ━━━ 하단 버튼 ━━━
         footer = ctk.CTkFrame(main, fg_color=UI_BG_COLOR, corner_radius=0)
         footer.grid(row=6, column=0, sticky="ew", padx=24, pady=(12, 20))
-        footer.grid_columnconfigure((0, 1, 2), weight=1)
+        footer.grid_columnconfigure((0, 1), weight=1)
 
         ctk.CTkButton(
             footer,
@@ -526,25 +562,7 @@ class ScheduleDialog:
             border_color=UI_BORDER_COLOR,
             text_color=UI_BTN_FG,
             command=self._on_cancel,
-        ).grid(row=0, column=0, sticky="ew", padx=(0, 4))
-
-        # 예약 취소 버튼 — 예약 중일 때만 활성화
-        is_scheduled = bool(self._scheduler and self._scheduler.is_active)
-        self._cancel_schedule_btn = ctk.CTkButton(
-            footer,
-            text="예약 취소",
-            font=(ff, 13, "bold"),
-            height=44,
-            corner_radius=12,
-            fg_color=UI_ACCENT_COLOR if is_scheduled else UI_BTN_BG,
-            hover_color=UI_ACCENT_HOVER if is_scheduled else UI_BTN_HOVER,
-            border_width=1,
-            border_color=UI_ACCENT_COLOR if is_scheduled else UI_BORDER_COLOR,
-            text_color=UI_ACCENT_TEXT if is_scheduled else UI_MUTED_FG,
-            state="normal" if is_scheduled else "disabled",
-            command=self._on_cancel_schedule,
-        )
-        self._cancel_schedule_btn.grid(row=0, column=1, sticky="ew", padx=4)
+        ).grid(row=0, column=0, sticky="ew", padx=(0, 6))
 
         ctk.CTkButton(
             footer,
@@ -556,7 +574,7 @@ class ScheduleDialog:
             hover_color=UI_DANGER_HOVER,
             text_color=UI_ACCENT_TEXT,
             command=self._on_confirm,
-        ).grid(row=0, column=2, sticky="ew", padx=(4, 0))
+        ).grid(row=0, column=1, sticky="ew", padx=(6, 0))
 
         # ━━━ 자동 시작 토글 버튼 ━━━
         autostart_on = is_autostart_enabled()
@@ -596,22 +614,33 @@ class ScheduleDialog:
     def _tick_countdown(self) -> None:
         """예약 중인 경우 남은 시간을 1초마다 카운트다운 배너에 갱신."""
         try:
-            if self._scheduler and self._scheduler.is_active and self._scheduler.scheduled_time:
-                remaining = self._scheduler.scheduled_time - datetime.now()
-                total_sec = int(remaining.total_seconds())
-                if total_sec > 0:
+            if self._scheduler and self._scheduler.is_active:
+                label = (
+                    ACTION_LABEL_RESTART
+                    if self._scheduler.scheduled_action == ACTION_RESTART
+                    else ACTION_LABEL_SHUTDOWN
+                )
+                # 일시정지 중이면 남은 초를 고정 표시
+                if self._scheduler.is_paused:
+                    total_sec = int(self._scheduler._pause_remaining)
                     h, rem = divmod(total_sec, 3600)
                     m, s = divmod(rem, 60)
-                    label = (
-                        ACTION_LABEL_RESTART
-                        if self._scheduler.scheduled_action == ACTION_RESTART
-                        else ACTION_LABEL_SHUTDOWN
-                    )
                     self._countdown_var.set(
-                        f"⏱  {label}까지  {h:02d}:{m:02d}:{s:02d}  남았습니다"
+                        f"⏸  {label}까지  {h:02d}:{m:02d}:{s:02d}  (일시정지)"
                     )
                     self._countdown_after_id = self.top.after(1000, self._tick_countdown)
                     return
+                if self._scheduler.scheduled_time:
+                    remaining = self._scheduler.scheduled_time - datetime.now()
+                    total_sec = int(remaining.total_seconds())
+                    if total_sec > 0:
+                        h, rem = divmod(total_sec, 3600)
+                        m, s = divmod(rem, 60)
+                        self._countdown_var.set(
+                            f"⏱  {label}까지  {h:02d}:{m:02d}:{s:02d}  남았습니다"
+                        )
+                        self._countdown_after_id = self.top.after(1000, self._tick_countdown)
+                        return
             # 예약이 없거나 시간 초과: 배너 숨김
             self._countdown_frame.grid_remove()
             self._countdown_var.set("")
@@ -867,18 +896,33 @@ class ScheduleDialog:
         dlg.bind("<Escape>", lambda e: _cancel())
 
     def _on_cancel_schedule(self) -> None:
-        """예약 취소 버튼 처리 — 스케줄러에 취소를 위임하고 다이얼로그를 닫는다."""
+        """■ 예약 취소 버튼 처리 — 스케줄러에 취소를 위임하고 다이얼로그를 닫는다."""
         if self._scheduler is not None:
             self._scheduler.cancel_shutdown()
         self._close(destroy=True)
 
-    def _on_toggle_autostart(self) -> None:
-        """자동 시작 토글 버튼 처리 — 상태 전환 후 버튼 외형 갱신."""
-        if is_autostart_enabled():
-            disable_autostart()
+    def _on_pause_resume(self) -> None:
+        """⏸/▶ 일시정지·재개 버튼 처리 — 상태 토글 후 버튼 아이콘 갱신."""
+        if self._scheduler is None:
+            return
+        if self._scheduler.is_paused:
+            self._scheduler.resume_shutdown()
+            self._btn_pause_resume.configure(text="⏸")
         else:
-            enable_autostart()
+            self._scheduler.pause_shutdown()
+            self._btn_pause_resume.configure(text="▶")
+
+    def _on_toggle_autostart(self) -> None:
+        """자동 시작 토글 버튼 처리 — 상태 전환 후 버튼 외형 갱신 및 토스트 표시."""
+        if is_autostart_enabled():
+            ok, msg = disable_autostart()
+            toast_type = "autostart_off"
+        else:
+            ok, msg = enable_autostart()
+            toast_type = "autostart_on"
         self._refresh_autostart_btn()
+        if self._scheduler is not None:
+            self._scheduler._show_confirm_toast(msg, toast_type=toast_type)
 
     def _refresh_autostart_btn(self) -> None:
         """자동 시작 버튼 색상·텍스트 갱신."""
@@ -949,8 +993,10 @@ class ShutdownScheduler:
         self._toast_label: Optional[tk.Label] = None
         self._toast_window: Optional[tk.Toplevel] = None
         self._toast_after_id: Optional[str] = None
-        self._toast_is_cancel: bool = False
+        self._toast_type: str = ""  # "schedule"|"cancel"|"autostart_on"|"autostart_off"|"info"
         self._warning_timers: list[threading.Timer] = []
+        self.is_paused: bool = False
+        self._pause_remaining: float = 0.0  # 일시정지 시점의 남은 초
 
         # tkinter 루트 (숨김)
         self._tk_root = tk.Tk()
@@ -1249,7 +1295,7 @@ class ShutdownScheduler:
         label = ACTION_LABEL_RESTART if action == ACTION_RESTART else ACTION_LABEL_SHUTDOWN
 
         if total_seconds == 0:
-            self._show_confirm_toast(f"시스템을 즉시 {label}합니다.")
+            self._show_confirm_toast(f"시스템을 즉시 {label}합니다.", toast_type="schedule")
             self._tk_root.after(CONFIRM_TOAST_DURATION_MS, self._execute_action)
             return
 
@@ -1285,7 +1331,7 @@ class ShutdownScheduler:
             parts.append(f"{secs}초")
         time_str = " ".join(parts) if parts else "0초"
 
-        self._show_confirm_toast(f"{time_str} 후 시스템이 {label}됩니다.")
+        self._show_confirm_toast(f"{time_str} 후 시스템이 {label}됩니다.", toast_type="schedule")
 
     @staticmethod
     def _get_hwnd(widget: tk.Toplevel) -> int:
@@ -1558,19 +1604,37 @@ class ShutdownScheduler:
         close_btn.bind("<Button-1>", lambda e: _dismiss())
         win.after(_WARNING_DURATION_MS, _dismiss)
 
-    def _show_confirm_toast(self, message: str, is_cancel: bool = False) -> None:
+    def _show_confirm_toast(self, message: str, toast_type: str = "info") -> None:
         """3초 후 자동으로 사라지는 확인 토스트 창 표시.
 
-        토스트가 이미 표시 중이면 메시지만 교체하고 타이머를 재시작한다.
+        같은 toast_type이면 메시지만 교체하고 타이머를 풀 리셋한다.
+        toast_type이 다르면 기존 창을 즉시 닫고 새 색상으로 다시 생성한다.
 
         Args:
             message: 표시할 메시지
-            is_cancel: True면 취소 토스트 (파란색), False면 예약 토스트 (빨간색)
+            toast_type: "schedule"(빨강) | "cancel"(파랑) |
+                        "autostart_on"(초록) | "autostart_off"(회색) | "info"
         """
-        # 기존 토스트가 살아있으면 메시지만 교체하고 알파·타이머 리셋
-        # 단, is_cancel 상태가 다르면 색상이 달라져야 하므로 기존 창을 닫고 새로 생성
+        # 타입별 색상·제목·아이콘 결정
+        action_label = (
+            ACTION_LABEL_RESTART
+            if self.scheduled_action == ACTION_RESTART
+            else ACTION_LABEL_SHUTDOWN
+        )
+        _TYPE_META: dict[str, tuple[str, str, str]] = {
+            "schedule":      (f"{action_label} 예약",    "⏻", UI_DANGER_COLOR),
+            "cancel":        (f"{action_label} 예약 취소", "⏻", UI_ACCENT_COLOR),
+            "autostart_on":  ("자동 시작 활성화",          "✔", UI_SUCCESS_COLOR),
+            "autostart_off": ("자동 시작 비활성화",         "✕", UI_SUB_FG_COLOR),
+            "info":          ("알림",                     "ℹ", UI_ACCENT_COLOR),
+        }
+        title, icon, accent = _TYPE_META.get(
+            toast_type, _TYPE_META["info"]
+        )
+
+        # 기존 토스트가 살아있으면 같은 타입일 때만 재사용
         if self._toast_window is not None:
-            if self._toast_is_cancel == is_cancel:
+            if self._toast_type == toast_type:
                 try:
                     existing_win = self._toast_window
                     if self._toast_label is not None:
@@ -1590,34 +1654,24 @@ class ShutdownScheduler:
                     return
                 except tk.TclError:
                     pass
-            # is_cancel이 달라졌거나 TclError — 기존 토스트 즉시 닫고 새로 생성
+            # 타입이 다르거나 TclError — 기존 토스트 즉시 닫고 새로 생성
             self._close_toast()
-
-        label = (
-            ACTION_LABEL_RESTART
-            if self.scheduled_action == ACTION_RESTART
-            else ACTION_LABEL_SHUTDOWN
-        )
-        title = f"{label} 예약 취소" if is_cancel else f"{label} 예약"
-        accent = UI_ACCENT_COLOR if is_cancel else UI_DANGER_COLOR
 
         win, close_btn = self._build_toast(
             title=title,
             message=message,
-            icon="⏻",
+            icon=icon,
             accent_color=accent,
             badge_bg=UI_TOAST_BADGE_BG,
         )
         self._toast_window = win
-        self._toast_is_cancel = is_cancel
+        self._toast_type = toast_type
 
         # 본문 레이블 참조 저장 (메시지 교체용)
-        # body 내 두 번째 Label이 본문
         body_widgets = win.winfo_children()[0].winfo_children()[1].winfo_children()
         self._toast_label = body_widgets[1] if len(body_widgets) > 1 else None
 
         # fade 완료 콜백: 이 창이 현재 toast_window와 동일할 때만 정리
-        # (fade 진행 중 새 토스트가 생성된 경우 새 창을 닫지 않도록 보호)
         def _on_fade_done(target: tk.Toplevel = win) -> None:
             if self._toast_window is target:
                 self._close_toast()
@@ -1642,7 +1696,7 @@ class ShutdownScheduler:
         self._toast_window = None
         self._toast_label = None
         self._toast_after_id = None
-        self._toast_is_cancel = False
+        self._toast_type = ""
 
     def _execute_action(self) -> None:
         """실제 종료/재시작 명령 실행 (타이머 콜백)."""
@@ -1680,8 +1734,55 @@ class ShutdownScheduler:
             self._tooltip_timer.cancel()
             self._tooltip_timer = None
 
+        self.is_paused = False
+        self._pause_remaining = 0.0
         self._set_active_state(False)
-        self._show_confirm_toast(f"{label} 예약이 취소되었습니다.", is_cancel=True)
+        self._show_confirm_toast(f"{label} 예약이 취소되었습니다.", toast_type="cancel")
+
+    def pause_shutdown(self) -> None:
+        """종료 타이머 일시정지."""
+        if not self.is_active or self.is_paused or self.scheduled_time is None:
+            return
+        remaining = (self.scheduled_time - datetime.now()).total_seconds()
+        if remaining <= 0:
+            return
+        self._pause_remaining = remaining
+        self.is_paused = True
+        # 타이머·경고 타이머 모두 취소 (재개 시 남은 시간으로 재등록)
+        if self._shutdown_timer:
+            self._shutdown_timer.cancel()
+            self._shutdown_timer = None
+        for t in self._warning_timers:
+            t.cancel()
+        self._warning_timers.clear()
+        if self._tooltip_timer:
+            self._tooltip_timer.cancel()
+            self._tooltip_timer = None
+
+    def resume_shutdown(self) -> None:
+        """일시정지된 종료 타이머 재개."""
+        if not self.is_active or not self.is_paused:
+            return
+        self.is_paused = False
+        total_seconds = int(self._pause_remaining)
+        self._pause_remaining = 0.0
+        # 남은 시간으로 재예약 (scheduled_time 갱신)
+        self.scheduled_time = datetime.now() + timedelta(seconds=total_seconds)
+        self._update_tooltip_loop()
+        self._shutdown_timer = threading.Timer(total_seconds, self._execute_action)
+        self._shutdown_timer.daemon = True
+        self._shutdown_timer.start()
+        # 경고 타이머 재등록
+        for warn_sec, warn_label in [(600, "10분"), (300, "5분"), (60, "1분")]:
+            delay = total_seconds - warn_sec
+            if delay >= 0 and total_seconds > warn_sec:
+                t = threading.Timer(
+                    delay,
+                    lambda wl=warn_label: self._queue.put(f"warn:{wl}"),
+                )
+                t.daemon = True
+                t.start()
+                self._warning_timers.append(t)
 
     def _set_active_state(self, active: bool) -> None:
         """트레이 아이콘 상태 전환.
@@ -1702,13 +1803,15 @@ class ShutdownScheduler:
         """자동 시작 상태 토글."""
         if is_autostart_enabled():
             ok, msg = disable_autostart()
+            toast_type = "autostart_off"
         else:
             ok, msg = enable_autostart()
+            toast_type = "autostart_on"
 
         if self.tray_icon:
             self.tray_icon.update_menu()
 
-        self._show_confirm_toast(msg)
+        self._show_confirm_toast(msg, toast_type=toast_type)
 
     def _exit_app(self) -> None:
         """프로그램 종료."""
