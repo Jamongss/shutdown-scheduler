@@ -117,6 +117,34 @@ def _resolve_ui_font(widget: tk.Misc) -> str:
     return UI_FONT_FAMILY_FALLBACK
 
 
+def _bring_to_front(window: tk.Toplevel) -> None:
+    """topmost 없이 창을 최상단으로 가져온다.
+
+    topmost=True 방식은 이후에도 창이 항상 앞에 고정되어 다른 앱 전환을
+    방해하는 부작용이 있다. Windows API SetForegroundWindow를 직접 호출하면
+    일회성으로만 앞으로 올라오고 이후에는 일반 창처럼 동작한다.
+
+    Args:
+        window: 앞으로 가져올 Toplevel 창
+    """
+    try:
+        import ctypes
+        # wm_frame() → GetAncestor(GA_ROOT=2) 로 실제 Win32 최상위 핸들 획득
+        user32 = ctypes.windll.user32
+        frame_id = int(window.wm_frame(), 16)
+        hwnd = user32.GetAncestor(frame_id, 2)
+        if hwnd:
+            # AllowSetForegroundWindow(-1) 권한 우회 후 SetForegroundWindow
+            ctypes.windll.user32.AllowSetForegroundWindow(-1)
+            user32.SetForegroundWindow(hwnd)
+    except Exception:
+        pass
+    try:
+        window.focus_force()
+    except Exception:
+        pass
+
+
 def _make_power_icon_photo(root: tk.Misc) -> Optional["ImageTk.PhotoImage"]:
     """전원 버튼 모양 32×32 PhotoImage 생성 (타이틀바 아이콘용).
 
@@ -304,10 +332,8 @@ class ScheduleDialog:
         y = (sh - DIALOG_HEIGHT) // 2
         top.geometry(f"{DIALOG_WIDTH}x{DIALOG_HEIGHT}+{x}+{y}")
         top.grab_set()
-        # 창 열릴 때만 잠깐 앞으로 가져온 뒤 topmost 해제
-        # (항상 최상단 고정 방지)
-        top.attributes("-topmost", True)
-        top.after(100, lambda: top.attributes("-topmost", False))
+        # topmost 없이 Windows API로 직접 포커스 이동 — 이후 일반 창처럼 동작
+        top.after(50, lambda: _bring_to_front(top))
 
         # ── 메인 스크롤 없는 단일 프레임
         main = ctk.CTkFrame(top, fg_color=UI_BG_COLOR, corner_radius=0)
@@ -600,8 +626,6 @@ class ScheduleDialog:
 
         top.bind("<Return>", lambda e: self._on_confirm())
         top.bind("<Escape>", lambda e: self._on_cancel())
-        # 다른 창 클릭 시 topmost 해제 → 자연스럽게 뒤로 내려감
-        top.bind("<FocusOut>", lambda e: top.attributes("-topmost", False))
 
         self._refresh_action_btns()
         self._refresh_unit_btns()
@@ -1249,12 +1273,8 @@ class ShutdownScheduler:
             try:
                 top = self._active_dialog.top
                 top.deiconify()
-                # 다른 앱 위로 잠깐 올라온 뒤 topmost 해제
-                # → 포커스 잃으면 FocusOut 바인딩에 의해 다시 뒤로 내려감
-                top.attributes("-topmost", True)
                 top.lift()
-                top.focus_force()
-                top.after(100, lambda: top.attributes("-topmost", False))
+                _bring_to_front(top)
                 return
             except tk.TclError:
                 self._active_dialog = None
