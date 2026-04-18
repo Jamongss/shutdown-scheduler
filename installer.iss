@@ -5,7 +5,7 @@
 ; ============================================================
 
 #define MyAppName "ShutdownScheduler"
-#define MyAppVersion "1.1.0"
+#define MyAppVersion "1.1.1"
 #define MyAppPublisher "Jamong"
 #define MyAppExeName "shutdown_scheduler.exe"
 #define MyTaskName "ShutdownScheduler_AutoStart"

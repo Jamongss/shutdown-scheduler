@@ -354,7 +354,6 @@ class ScheduleDialog:
         x = (sw - DIALOG_WIDTH) // 2
         y = (sh - DIALOG_HEIGHT) // 2
         top.geometry(f"{DIALOG_WIDTH}x{DIALOG_HEIGHT}+{x}+{y}")
-        top.grab_set()
         # topmost 없이 Windows API로 직접 포커스 이동 — 이후 일반 창처럼 동작
         top.after(50, lambda: _bring_to_front(top))
 
@@ -398,6 +397,7 @@ class ScheduleDialog:
             text_color=UI_SUB_FG_COLOR,
             anchor="w",
         ).grid(row=1, column=1, sticky="w")
+
 
         # ━━━ 예약 카운트다운 배너 (예약 중일 때만 표시) ━━━
         self._countdown_var = tk.StringVar(value="")
@@ -597,7 +597,7 @@ class ScheduleDialog:
 
         # ━━━ 하단 버튼 ━━━
         footer = ctk.CTkFrame(main, fg_color=UI_BG_COLOR, corner_radius=0)
-        footer.grid(row=6, column=0, sticky="ew", padx=24, pady=(12, 20))
+        footer.grid(row=6, column=0, sticky="ew", padx=24, pady=(12, 0))
         footer.grid_columnconfigure((0, 1), weight=1)
 
         ctk.CTkButton(
@@ -626,10 +626,10 @@ class ScheduleDialog:
             command=self._on_confirm,
         ).grid(row=0, column=1, sticky="ew", padx=(6, 0))
 
-        # ━━━ 자동 시작 토글 버튼 ━━━
+        # ━━━ 창 최하단: 자동 시작 풀 버튼 (초기 버전 스타일) ━━━
         autostart_on = is_autostart_enabled()
         self._autostart_btn = ctk.CTkButton(
-            footer,
+            main,
             text=("✔  Windows 시작 시 자동 실행  (활성화됨)"
                   if autostart_on else
                   "Windows 시작 시 자동 실행  (비활성화됨)"),
@@ -643,9 +643,7 @@ class ScheduleDialog:
             text_color=UI_FG_COLOR if autostart_on else UI_MUTED_FG,
             command=self._on_toggle_autostart,
         )
-        self._autostart_btn.grid(
-            row=1, column=0, columnspan=3, sticky="ew", pady=(8, 0)
-        )
+        self._autostart_btn.grid(row=7, column=0, sticky="ew", padx=24, pady=(92, 20))
 
         top.bind("<Return>", lambda e: self._on_confirm())
         top.bind("<Escape>", lambda e: self._on_cancel())

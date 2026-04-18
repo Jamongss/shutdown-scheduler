@@ -1,5 +1,6 @@
-# Claude Code 설정 파일
+# Claude Code 관련 파일
 CLAUDE.md
+.claude/
 
 # 민감한 개인 경로 포함 파일
 project_info.txt

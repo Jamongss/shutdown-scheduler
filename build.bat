@@ -172,7 +172,7 @@ echo.
 
 echo ============================================================
 echo  [OK] Build complete
-echo  Installer: %~dp0dist_package\ShutdownScheduler_Setup_1.1.0.exe
+echo  Installer: %~dp0dist_package\ShutdownScheduler_Setup_1.1.1.exe
 echo.
 echo  Distribute this single .exe file. Users just double-click
 echo  it to install (UAC prompt will appear).

@@ -9,7 +9,7 @@ HOTKEY_CANCEL: str = "alt+s"    # 예약 취소
 # --- UI 설정 ---
 DIALOG_TITLE: str = "종료 예약"
 DIALOG_WIDTH: int = 420
-DIALOG_HEIGHT: int = 610
+DIALOG_HEIGHT: int = 644
 
 # --- customtkinter 테마 ---
 CTK_APPEARANCE: str = "dark"
@@ -111,7 +111,7 @@ TOOLTIP_UPDATE_INTERVAL_MS: int = 1000
 QUEUE_POLL_INTERVAL_MS: int = 50
 
 # --- 앱 버전 ---
-APP_VERSION: str = "1.1.0"
+APP_VERSION: str = "1.1.1"
 
 # --- 동작 종류 ---
 ACTION_SHUTDOWN: str = "shutdown"
