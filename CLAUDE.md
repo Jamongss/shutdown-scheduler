@@ -76,7 +76,7 @@ Windows API로 둥근 모서리 + Acrylic blur 적용:
    - 종료 실행: `threading.Timer` + `shutdown /s /t 0 /f` 방식만 허용
 2. **ttk 위젯 사용 금지** — Windows 시스템 테마가 배경색을 오버라이드함 → `tk` + `customtkinter`만 사용
 3. **`build.bat` 직접 실행 금지** (실제 배포 명령)
-4. **개인 로컬 경로(`C:\Users\<사용자>\...`) 포함 파일 커밋 금지**
+4. **개인 로컬 경로(`C:\Users\<사용자>\...`, `/home/<사용자>/...`) 포함 파일 커밋 금지**
 
 ## UI 패턴
 
