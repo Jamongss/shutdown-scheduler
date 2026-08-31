@@ -17,6 +17,9 @@ app_icon.ico
 # 백업
 back/
 
+# 세션 작업 기록 (/save)
+session_log/
+
 # 로그
 *.log
 error.log
