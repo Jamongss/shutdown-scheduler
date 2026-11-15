@@ -1,6 +1,7 @@
 @echo off
 setlocal EnableDelayedExpansion
-cd /d "%~dp0"
+REM cd /d cannot enter UNC paths (\\wsl.localhost) and falls back to C:\Windows; pushd maps a temp drive
+pushd "%~dp0" || goto :fail
 
 echo ============================================================
 echo  ShutdownScheduler Build Script (PyInstaller + Inno Setup)
@@ -172,13 +173,14 @@ echo.
 
 echo ============================================================
 echo  [OK] Build complete
-echo  Installer: %~dp0dist_package\ShutdownScheduler_Setup_1.1.1.exe
+echo  Installer: %~dp0dist_package\ShutdownScheduler_Setup_1.3.0.exe
 echo.
 echo  Distribute this single .exe file. Users just double-click
 echo  it to install (UAC prompt will appear).
 echo ============================================================
 echo.
 pause
+popd
 endlocal
 exit /b 0
 
@@ -189,5 +191,6 @@ echo  [FAIL] Build aborted. See messages above.
 echo ============================================================
 echo.
 pause
+popd
 endlocal
 exit /b 1
